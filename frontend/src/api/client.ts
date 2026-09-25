@@ -53,10 +53,22 @@ export async function deleteRepository(repoId: string): Promise<void> {
 
 // ── Graph ─────────────────────────────────────────────────────────────────
 
+/** Trigger analysis pipeline for a repo (returns immediately, runs in background). */
+export async function scanRepository(repoId: string): Promise<{ repo_id: string; status: string; message: string }> {
+  const { data } = await api.post(`/api/scan/${repoId}`)
+  return data
+}
+
+/** Poll scan status. */
+export async function getScanStatus(repoId: string): Promise<{ repo_id: string; status: string; error_message?: string }> {
+  const { data } = await api.get(`/api/status/${repoId}`)
+  return data
+}
+
 /** Fetch the full dependency graph for a repo. */
-export async function getGraph(_repoId: string): Promise<GraphData> {
-  // TODO: implement in Phase 4
-  throw new Error('Not implemented yet (Phase 4)')
+export async function getGraph(repoId: string): Promise<GraphData> {
+  const { data } = await api.get<GraphData>(`/api/graph/${repoId}`)
+  return data
 }
 
 // ── Impact ────────────────────────────────────────────────────────────────

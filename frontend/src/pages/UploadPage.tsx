@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import UploadZone from '../components/UploadZone'
 import FileTree from '../components/FileTree'
-import { uploadRepository, getStructure, deleteRepository } from '../api/client'
+import { uploadRepository, getStructure, deleteRepository, scanRepository } from '../api/client'
 
 interface Props {
   onRepoReady: (repoId: string) => void
@@ -30,6 +30,8 @@ export default function UploadPage({ onRepoReady }: Props) {
 
     try {
       const uploaded = await uploadRepository(file)
+      // Kick off analysis pipeline immediately (runs in background)
+      scanRepository(uploaded.repo_id).catch(() => { /* status polled separately */ })
       const structure = await getStructure(uploaded.repo_id)
 
       setPreview({
