@@ -126,5 +126,82 @@ describe('NodePanel with Watsonx Purpose Summary', () => {
     fireEvent.click(scopeBtn)
     expect(onScopeChange).toHaveBeenCalledWith('lineage')
   })
+
+  it('triggers 1-click Analyse & Explain with AI and Quick Impact Only', () => {
+    const onAnalyze = vi.fn()
+    render(
+      <NodePanel
+        node={mockNode}
+        repoId="test-repo-123"
+        impactResult={null}
+        impactLoading={false}
+        impactError={null}
+        onAnalyze={onAnalyze}
+      />
+    )
+
+    // Test preset pill
+    const refactorPill = screen.getByText('+ Refactor Logic')
+    fireEvent.click(refactorPill)
+    const textarea = screen.getByPlaceholderText(/Refactoring implementation of/i) as HTMLTextAreaElement
+    expect(textarea.value).toBe('Refactoring implementation of login')
+
+    // Click 1-Click Analyse & Explain with AI
+    const aiAnalyzeBtn = screen.getByText(/Analyse & Explain with AI/i)
+    fireEvent.click(aiAnalyzeBtn)
+    expect(onAnalyze).toHaveBeenCalledWith('auth_service.login', 'Refactoring implementation of login', true)
+
+    // Click Quick Impact Only
+    const quickImpactBtn = screen.getByText(/Quick Impact Only/i)
+    fireEvent.click(quickImpactBtn)
+    expect(onAnalyze).toHaveBeenCalledWith('auth_service.login', 'Refactoring implementation of login', false)
+  })
+
+  it('renders integrated impact result with AI migration plan slot', () => {
+    const mockImpact = {
+      selected_node_id: 'auth_service.login',
+      selected_node_label: 'login',
+      selected_node_type: 'function',
+      direct_affected: [{ id: 'api.login_endpoint', label: 'login_endpoint', type: 'function' }],
+      transitive_affected: [],
+      related_tests: [{ id: 'tests.test_auth', label: 'test_login', type: 'test' }],
+      risk_level: 'LOW' as const,
+      risk_score: 25,
+      contributing_factors: ['Only 1 downstream consumer affected'],
+      max_depth: 2,
+      analysis_type: 'deterministic',
+      change_description: 'Refactoring login logic',
+    }
+
+    const mockAiExplanation = {
+      available: true,
+      explanation: 'Careful testing recommended for login authentication contract.',
+      risk_areas: ['Session token invalidation'],
+      migration_plan: ['Update login contract', 'Run auth test suite'],
+      recommended_tests: ['tests.test_auth.test_login'],
+      model_used: 'ibm/granite-13b-chat-v2',
+      analysis_type: 'watsonx',
+    }
+
+    render(
+      <NodePanel
+        node={mockNode}
+        repoId="test-repo-123"
+        impactResult={mockImpact}
+        impactLoading={false}
+        impactError={null}
+        onAnalyze={vi.fn()}
+        aiExplanation={mockAiExplanation}
+        aiLoading={false}
+      />
+    )
+
+    expect(screen.getByText('Directly Affected')).toBeDefined()
+    expect(screen.getByText('Careful testing recommended for login authentication contract.')).toBeDefined()
+    expect(screen.getByText('Session token invalidation')).toBeDefined()
+    expect(screen.getByText('Update login contract')).toBeDefined()
+    expect(screen.getByText('Copy Plan')).toBeDefined()
+  })
 })
+
 

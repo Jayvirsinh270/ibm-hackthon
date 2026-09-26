@@ -238,14 +238,18 @@ export default function GraphPage({ repoId }: Props) {
     }
   }
 
-  const handleAnalyze = (nodeId: string, description: string) => {
+  const handleAnalyze = (nodeId: string, description: string, withAi = false) => {
     clearAI()
     runImpact(repoId, nodeId, description)
+    if (withAi) {
+      requestAI(repoId, nodeId, description)
+    }
   }
 
-  const handleAiRequest = () => {
+  const handleAiRequest = (description?: string) => {
     if (selectedNode) {
-      requestAI(repoId, selectedNode.id, impactResult?.change_description ?? '')
+      const desc = description ?? impactResult?.change_description ?? ''
+      requestAI(repoId, selectedNode.id, desc)
     }
   }
 

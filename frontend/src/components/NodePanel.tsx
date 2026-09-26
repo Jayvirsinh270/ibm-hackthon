@@ -10,10 +10,10 @@ interface Props {
   impactResult: ImpactResult | null
   impactLoading: boolean
   impactError: string | null
-  onAnalyze: (nodeId: string, description: string) => void
+  onAnalyze: (nodeId: string, description: string, withAi?: boolean) => void
   aiExplanation?: AIExplanation | null
   aiLoading?: boolean
-  onAiRequest?: () => void
+  onAiRequest?: (description?: string) => void
   onViewSource?: (filePath: string, targetLine?: number, symbolName?: string) => void
   onLayoutHierarchy?: (nodeId: string, scope: 'lineage' | 'deep' | 'component') => void
   onResetLayout?: () => void
@@ -466,9 +466,20 @@ export default function NodePanel({
               Change Scenario <span className="text-gray-500 font-normal text-[11px]">(optional)</span>
             </label>
           </div>
-          <span className={`text-[10px] tabular-nums font-mono ${changeDesc.length >= MAX_DESC ? 'text-red-400' : 'text-gray-500'}`}>
-            {changeDesc.length}/{MAX_DESC}
-          </span>
+          <div className="flex items-center gap-2">
+            {changeDesc && (
+              <button
+                onClick={() => setChangeDesc('')}
+                className="text-[10px] text-gray-400 hover:text-gray-200 underline font-medium transition-colors"
+                title="Clear scenario text"
+              >
+                Clear
+              </button>
+            )}
+            <span className={`text-[10px] tabular-nums font-mono ${changeDesc.length >= MAX_DESC ? 'text-red-400' : 'text-gray-500'}`}>
+              {changeDesc.length}/{MAX_DESC}
+            </span>
+          </div>
         </div>
 
         {/* Quick Scenario Fill Pills */}
@@ -477,11 +488,13 @@ export default function NodePanel({
             { label: 'Refactor Logic', text: `Refactoring implementation of ${node.label}` },
             { label: 'Signature Update', text: `Updating parameters & return signature for ${node.label}` },
             { label: 'Bug Fix', text: `Bug fix addressing edge cases in ${node.label}` },
+            { label: 'Performance', text: `Optimizing execution speed & memory caching in ${node.label}` },
+            { label: 'Security Patch', text: `Hardening validation & input sanitization in ${node.label}` },
           ].map(p => (
             <button
               key={p.label}
               onClick={() => setChangeDesc(p.text)}
-              className="text-[10px] font-medium text-gray-400 hover:text-blue-300 bg-white/[0.04] hover:bg-blue-500/10 border border-white/[0.06] hover:border-blue-500/30 px-2 py-0.5 rounded-md transition-all active:scale-95"
+              className="text-[10px] font-medium text-gray-400 hover:text-indigo-300 bg-white/[0.04] hover:bg-indigo-500/10 border border-white/[0.06] hover:border-indigo-500/30 px-2 py-0.5 rounded-md transition-all active:scale-95"
             >
               + {p.label}
             </button>
@@ -491,30 +504,45 @@ export default function NodePanel({
         <textarea
           value={changeDesc}
           onChange={e => setChangeDesc(e.target.value.slice(0, MAX_DESC))}
-          placeholder="e.g. Refactoring the authentication logic or modifying public contract…"
+          placeholder="e.g. Refactoring implementation of get_dashboard_recommendations or modifying contract…"
           maxLength={MAX_DESC}
           rows={2}
-          className="w-full bg-[#0a0d14] border border-white/[0.1] focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/30 rounded-xl p-3 text-xs text-gray-200 placeholder-gray-500 outline-none resize-none transition-all shadow-inner"
+          className="w-full bg-[#0a0d14] border border-white/[0.1] focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 rounded-xl p-3 text-xs text-gray-200 placeholder-gray-500 outline-none resize-none transition-all shadow-inner"
         />
 
-        {/* ── Analyse Impact button ──────────────────────────────────────── */}
-        <button
-          onClick={() => onAnalyze(node.id, changeDesc)}
-          disabled={impactLoading}
-          className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.99] disabled:opacity-40 disabled:cursor-wait text-white text-xs font-semibold shadow-xl shadow-blue-950/50 border border-white/[0.15] transition-all duration-150"
-        >
-          {impactLoading ? (
-            <>
-              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              <span>Analysing Impact…</span>
-            </>
-          ) : (
-            <>
-              <span className="text-sm">★</span>
-              <span>Analyse Impact</span>
-            </>
-          )}
-        </button>
+        {/* Dual Actions: 1-Click Analyse & Explain with AI (Primary) + Quick Graph Impact Only (Secondary) */}
+        <div className="flex flex-col gap-2 pt-1">
+          <button
+            onClick={() => onAnalyze(node.id, changeDesc, true)}
+            disabled={impactLoading || aiLoading}
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:via-indigo-500 hover:to-violet-500 active:scale-[0.99] disabled:opacity-45 disabled:cursor-wait text-white text-xs font-bold shadow-xl shadow-indigo-950/60 border border-indigo-400/30 transition-all duration-150 group"
+          >
+            {impactLoading || aiLoading ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Analysing & Explaining with AI…</span>
+              </>
+            ) : (
+              <>
+                <span className="text-sm text-indigo-200 group-hover:scale-125 transition-transform">✦</span>
+                <span className="tracking-wide">Analyse & Explain with AI</span>
+                <span className="text-[10px] font-normal text-indigo-200/90 bg-white/[0.12] px-2 py-0.5 rounded-full border border-white/[0.15] ml-1">
+                  1-Click
+                </span>
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={() => onAnalyze(node.id, changeDesc, false)}
+            disabled={impactLoading || aiLoading}
+            className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] active:scale-[0.99] disabled:opacity-40 disabled:cursor-wait text-gray-400 hover:text-gray-200 text-[11px] font-medium border border-white/[0.07] transition-all"
+            title="Fast deterministic graph blast radius calculation without AI explanation"
+          >
+            <span className="text-gray-500">★</span>
+            <span>Quick Impact Only (Graph blast radius)</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Impact error ───────────────────────────────────────────────── */}
@@ -528,17 +556,21 @@ export default function NodePanel({
         </div>
       )}
 
-      {/* ── Impact results ─────────────────────────────────────────────── */}
+      {/* ── Impact results with integrated AI Insights ───────────────── */}
       {(impactResult || impactLoading) && (
-        <ImpactPanel result={impactResult} loading={impactLoading} />
-      )}
-
-      {/* ── AI panel ───────────────────────────────────────────────────── */}
-      {impactResult && (
-        <AIPanel
-          explanation={aiExplanation}
-          loading={aiLoading}
-          onRequest={onAiRequest}
+        <ImpactPanel
+          result={impactResult}
+          loading={impactLoading}
+          aiContent={
+            impactResult ? (
+              <AIPanel
+                explanation={aiExplanation}
+                loading={aiLoading}
+                onRequest={() => onAiRequest?.(changeDesc || impactResult.change_description)}
+                hasScenario={Boolean(changeDesc || impactResult.change_description)}
+              />
+            ) : undefined
+          }
         />
       )}
 
