@@ -672,15 +672,18 @@ export default function GraphPage({ repoId }: Props) {
             <div>
               {/* Sidebar header (when only node is open) */}
               {!diffModeOpen && (
-                <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-white/[0.06] bg-[#0d1017]/95 backdrop-blur-sm">
+                <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-white/[0.06] bg-[#0d1017]/95 backdrop-blur-md">
                   <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${TYPE_DOT[selectedNode.type] ?? 'bg-gray-400'}`} />
-                    <h3 className="text-sm font-semibold text-gray-200">Node Details</h3>
+                    <span className={`w-2 h-2 rounded-full ${TYPE_DOT[selectedNode.type] ?? 'bg-gray-400'} ring-2 ring-white/10`} />
+                    <h3 className="text-sm font-semibold text-white tracking-tight">Node Details</h3>
+                    <span className="text-[10px] text-gray-400 uppercase tracking-wider bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-full font-mono font-medium">
+                      {selectedNode.type}
+                    </span>
                   </div>
                   <button
                     onClick={() => setSelectedNode(null)}
-                    className="w-6 h-6 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-all"
-                    title="Close"
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] transition-all"
+                    title="Close Details Panel"
                   >
                     <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5">
                       <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
