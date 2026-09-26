@@ -77,4 +77,54 @@ describe('NodePanel with Watsonx Purpose Summary', () => {
       expect(screen.getByText('Complexity: LOW')).toBeDefined()
     })
   })
+
+  it('renders Hierarchy Tree button and triggers layout on click', () => {
+    const onLayoutHierarchy = vi.fn()
+    render(
+      <NodePanel
+        node={mockNode}
+        repoId="test-repo-123"
+        impactResult={null}
+        impactLoading={false}
+        impactError={null}
+        onAnalyze={vi.fn()}
+        onLayoutHierarchy={onLayoutHierarchy}
+      />
+    )
+
+    const hierarchyBtn = screen.getByText('Hierarchy Tree')
+    expect(hierarchyBtn).toBeDefined()
+    fireEvent.click(hierarchyBtn)
+    expect(onLayoutHierarchy).toHaveBeenCalledWith('auth_service.login', 'component')
+  })
+
+  it('renders active hierarchy state and triggers reset on click', () => {
+    const onResetLayout = vi.fn()
+    const onScopeChange = vi.fn()
+    render(
+      <NodePanel
+        node={mockNode}
+        repoId="test-repo-123"
+        impactResult={null}
+        impactLoading={false}
+        impactError={null}
+        onAnalyze={vi.fn()}
+        onResetLayout={onResetLayout}
+        onScopeChange={onScopeChange}
+        isHierarchyActive={true}
+        hierarchyNodeCount={5}
+        hierarchyScope="component"
+      />
+    )
+
+    expect(screen.getByText(/Hierarchy: 5 nodes/i)).toBeDefined()
+    const resetBtn = screen.getByText('Reset Layout')
+    fireEvent.click(resetBtn)
+    expect(onResetLayout).toHaveBeenCalled()
+
+    const scopeBtn = screen.getByText(/Full Cluster ⇄/i)
+    fireEvent.click(scopeBtn)
+    expect(onScopeChange).toHaveBeenCalledWith('lineage')
+  })
 })
+

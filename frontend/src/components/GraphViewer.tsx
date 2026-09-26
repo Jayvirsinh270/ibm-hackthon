@@ -9,15 +9,25 @@
 // Edge style: 'straight' for graphs ≥80 nodes (fastest GPU path),
 //             'bezier' for small graphs (nicer curves).
 
-import { useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react'
+import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react'
 import cytoscape from 'cytoscape'
 import type { Core, NodeSingular, EventObject } from 'cytoscape'
 import type { GraphData, GraphNode } from '../types'
+
+export interface HierarchyInfo {
+  active: boolean
+  nodeId: string | null
+  nodeCount: number
+  rootCount: number
+  scope: 'component' | 'lineage'
+}
 
 export interface GraphViewerHandle {
   focusNode: (id: string) => void
   tracePath: (targetId: string | null) => void
   exportPng: () => void
+  layoutHierarchy: (nodeId: string, scope?: 'component' | 'lineage') => HierarchyInfo | null
+  resetLayout: () => void
 }
 
 export interface DiffHighlightMap {
@@ -38,6 +48,7 @@ interface Props {
   hiddenTypes?: Set<string>
   onNodeClick: (node: GraphNode) => void
   onBackgroundClick?: () => void
+  onHierarchyChange?: (info: HierarchyInfo | null) => void
 }
 
 // ── Layout ────────────────────────────────────────────────────────────────
@@ -140,6 +151,29 @@ const STYLESHEET: any[] = [
   { selector: 'edge.type-hidden', style: { 'display': 'none' } },
   { selector: 'node.subgraph-hidden', style: { 'display': 'none' } },
   { selector: 'edge.subgraph-hidden', style: { 'display': 'none' } },
+  // Hierarchy Tree Layout Mode
+  { selector: 'node.hierarchy-dimmed', style: { 'opacity': 0.08, 'events': 'no' } },
+  { selector: 'edge.hierarchy-dimmed', style: { 'opacity': 0.02, 'events': 'no' } },
+  { selector: 'node.hierarchy-node',
+    style: {
+      'border-color': '#38bdf8', 'border-width': 2.5,
+      'color': '#e0f2fe', 'opacity': 1, 'z-index': 100,
+    } },
+  { selector: 'edge.hierarchy-edge',
+    style: {
+      'line-color': '#0284c7', 'target-arrow-color': '#38bdf8', 'width': 2.5,
+      'curve-style': 'bezier', 'opacity': 0.95, 'z-index': 95,
+    } },
+  { selector: 'node.hierarchy-root',
+    style: {
+      'background-color': '#065f46', 'border-color': '#34d399', 'border-width': 3,
+      'color': '#ecfdf5', 'text-background-color': '#064e3b', 'z-index': 110,
+    } },
+  { selector: 'node.hierarchy-target',
+    style: {
+      'background-color': '#b45309', 'border-color': '#f59e0b', 'border-width': 3.5,
+      'color': '#ffffff', 'font-size': '10px', 'text-background-color': '#451a03', 'z-index': 120,
+    } },
   // Traced path (gradient cyan illuminated lineage)
   { selector: 'node.path-traced',
     style: {
@@ -214,17 +248,142 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
   hiddenTypes,
   onNodeClick,
   onBackgroundClick,
+  onHierarchyChange,
 }, ref) {
   const containerRef = useRef<HTMLDivElement>(null)
   const cyRef        = useRef<Core | null>(null)
   const layoutTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const [hierarchyInfo, setHierarchyInfo] = useState<HierarchyInfo | null>(null)
+  const hierarchyInfoRef = useRef<HierarchyInfo | null>(null)
+  hierarchyInfoRef.current = hierarchyInfo
+
   const onNodeClickRef       = useRef(onNodeClick)
   const onBackgroundClickRef = useRef(onBackgroundClick)
+  const onHierarchyChangeRef = useRef(onHierarchyChange)
   useEffect(() => { onNodeClickRef.current = onNodeClick },             [onNodeClick])
   useEffect(() => { onBackgroundClickRef.current = onBackgroundClick }, [onBackgroundClick])
+  useEffect(() => { onHierarchyChangeRef.current = onHierarchyChange }, [onHierarchyChange])
 
-  // Expose focusNode, tracePath, and exportPng to parent via ref
+  // ── Hierarchy Tree Layout ───────────────────────────────────────────────
+  const layoutHierarchy = useCallback((nodeId: string, scope: 'component' | 'lineage' = 'component'): HierarchyInfo | null => {
+    const cy = cyRef.current
+    if (!cy) return null
+
+    const targetNode = cy.getElementById(nodeId)
+    if (targetNode.length === 0) return null
+
+    // Determine the connected elements based on scope
+    let connected: cytoscape.CollectionReturnValue
+    if (scope === 'lineage') {
+      const preds = targetNode.predecessors()
+      const succs = targetNode.successors()
+      connected = targetNode.union(preds).union(succs)
+    } else {
+      connected = targetNode.component()
+    }
+
+    const connectedNodes = connected.nodes()
+    if (connectedNodes.length === 0) return null
+
+    // Clean previous hierarchy classes
+    cy.elements().removeClass('hierarchy-node hierarchy-edge hierarchy-root hierarchy-target hierarchy-dimmed')
+
+    // Find roots: nodes in connectedNodes that have 0 incoming edges from any other node in connectedNodes
+    let roots = connectedNodes.filter(n => {
+      return (
+        n.incomers('edge').filter(e => {
+          const edge = e as cytoscape.EdgeSingular
+          return connectedNodes.contains(edge.source())
+        }).length === 0
+      )
+    })
+
+    // If in a cycle or no in-degree 0 found, fall back to target node as root
+    if (roots.length === 0) {
+      roots = targetNode
+    }
+
+    // Apply visual hierarchy styling
+    cy.elements().difference(connected).addClass('hierarchy-dimmed')
+    connected.nodes().addClass('hierarchy-node')
+    connected.edges().addClass('hierarchy-edge')
+    roots.addClass('hierarchy-root')
+    targetNode.addClass('hierarchy-target')
+
+    // Run breadthfirst layout on connected elements
+    const layout = connected.layout({
+      name: 'breadthfirst',
+      directed: true,
+      roots: roots,
+      padding: 70,
+      spacingFactor: 1.6,
+      animate: true,
+      animationDuration: 550,
+      avoidOverlap: true,
+      circle: false,
+      grid: false,
+      nodeDimensionsIncludeLabels: true,
+    } as cytoscape.LayoutOptions)
+
+    layout.one('layoutstop', () => {
+      cy.animate({
+        fit: {
+          eles: connectedNodes,
+          padding: 70,
+        },
+        duration: 550,
+        easing: 'ease-in-out-cubic',
+      } as Parameters<typeof cy.animate>[0])
+    })
+
+    layout.run()
+
+    const info: HierarchyInfo = {
+      active: true,
+      nodeId,
+      nodeCount: connectedNodes.length,
+      rootCount: roots.length,
+      scope,
+    }
+
+    setHierarchyInfo(info)
+    onHierarchyChangeRef.current?.(info)
+    return info
+  }, [])
+
+  // ── Reset to Default Layout ─────────────────────────────────────────────
+  const resetLayout = useCallback(() => {
+    const cy = cyRef.current
+    if (!cy) return
+
+    cy.elements().removeClass('hierarchy-node hierarchy-edge hierarchy-root hierarchy-target hierarchy-dimmed')
+
+    const opts = makeLayout(data.nodes.length)
+    const layout = cy.layout({
+      ...opts,
+      animate: data.nodes.length <= 150,
+      animationDuration: 450,
+    } as cytoscape.LayoutOptions)
+
+    layout.one('layoutstop', () => {
+      cy.animate({
+        fit: {
+          eles: cy.elements(':visible'),
+          padding: 60,
+        },
+        duration: 400,
+        easing: 'ease-in-out-cubic',
+      } as Parameters<typeof cy.animate>[0])
+    })
+
+    layout.run()
+
+    setHierarchyInfo(null)
+    onHierarchyChangeRef.current?.(null)
+  }, [data.nodes.length])
+
+  // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
     focusNode: (id: string) => {
       const cy = cyRef.current
@@ -290,7 +449,9 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
       link.href = dataUri
       link.click()
     },
-  }), [diffHighlights, selectedNodeId])
+    layoutHierarchy,
+    resetLayout,
+  }), [diffHighlights, selectedNodeId, layoutHierarchy, resetLayout])
 
   // Zoom helpers
   const zoomIn  = useCallback(() => {
@@ -347,6 +508,9 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
     // Cancel any in-flight deferred layout
     if (layoutTimer.current) { clearTimeout(layoutTimer.current); layoutTimer.current = null }
 
+    setHierarchyInfo(null)
+    onHierarchyChangeRef.current?.(null)
+
     cy.elements().remove()
 
     // Compute degree → node size (hub nodes are visually larger)
@@ -386,6 +550,15 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
   useEffect(() => {
     const cy = cyRef.current
     if (!cy) return
+
+    // If hierarchy mode is active, hierarchy styling takes precedence
+    if (hierarchyInfoRef.current?.active) {
+      if (selectedNodeId) {
+        cy.nodes().removeClass('hierarchy-target')
+        cy.getElementById(selectedNodeId).addClass('hierarchy-target')
+      }
+      return
+    }
 
     cy.nodes().removeClass('selected highlighted dimmed changed-symbol direct-affected transitive-affected related-test')
     cy.edges().removeClass('highlighted dimmed')
@@ -590,8 +763,63 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
         style={{ background: '#0a0c10' }}
       />
 
+      {/* Floating Hierarchy Status Banner */}
+      {hierarchyInfo && hierarchyInfo.active && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 bg-[#0e131f]/95 border border-cyan-500/40 rounded-full px-4 py-1.5 shadow-2xl backdrop-blur-md">
+          <span className="flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 text-xs">
+            🌳
+          </span>
+          <span className="text-xs font-semibold text-gray-200">
+            Hierarchy Tree:
+          </span>
+          <span className="text-xs text-cyan-300 font-mono">
+            {hierarchyInfo.nodeCount} connected node{hierarchyInfo.nodeCount !== 1 ? 's' : ''}
+          </span>
+          <span className="text-[11px] text-gray-400">
+            ({hierarchyInfo.scope === 'component' ? 'Full Cluster' : 'Direct Lineage'})
+          </span>
+          <button
+            onClick={resetLayout}
+            className="ml-1 text-[11px] font-medium text-gray-300 hover:text-white bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.10] px-2.5 py-0.5 rounded-full transition-colors"
+          >
+            Reset Layout
+          </button>
+        </div>
+      )}
+
       {/* Canvas tools (export + zoom) */}
       <div className="absolute bottom-4 right-4 flex flex-col gap-1.5 z-10">
+        <button
+          onClick={() => {
+            if (hierarchyInfo?.active) {
+              resetLayout()
+            } else if (selectedNodeId) {
+              layoutHierarchy(selectedNodeId)
+            }
+          }}
+          disabled={!selectedNodeId && !hierarchyInfo?.active}
+          title={
+            hierarchyInfo?.active
+              ? "Reset to standard force-directed layout"
+              : selectedNodeId
+              ? "Arrange connected nodes in hierarchy tree"
+              : "Select a node first to arrange its connected hierarchy"
+          }
+          className={`w-8 h-8 rounded-lg backdrop-blur-sm border transition-all flex items-center justify-center shadow-lg group ${
+            hierarchyInfo?.active
+              ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-emerald-500/20'
+              : selectedNodeId
+              ? 'bg-[#161b26]/90 border-white/[0.10] text-gray-400 hover:text-emerald-300 hover:bg-[#1e2433]'
+              : 'bg-[#161b26]/50 border-white/[0.05] text-gray-600 cursor-not-allowed'
+          }`}
+        >
+          <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 group-hover:scale-110 transition-transform">
+            <path d="M8 2v4M8 6l-4 4M8 6l4 4M4 10v3M12 10v3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="8" cy="2" r="1.5" fill="currentColor"/>
+            <circle cx="4" cy="13" r="1.5" fill="currentColor"/>
+            <circle cx="12" cy="13" r="1.5" fill="currentColor"/>
+          </svg>
+        </button>
         <button
           onClick={() => {
             const cy = cyRef.current

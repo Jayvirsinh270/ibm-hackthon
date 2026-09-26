@@ -2,7 +2,7 @@
 // Main analysis page — graph viewer + node panel + impact results
 
 import { useState, useMemo, useRef, useEffect } from 'react'
-import GraphViewer, { type GraphViewerHandle, type DiffHighlightMap } from '../components/GraphViewer'
+import GraphViewer, { type GraphViewerHandle, type DiffHighlightMap, type HierarchyInfo } from '../components/GraphViewer'
 import NodePanel from '../components/NodePanel'
 import DiffPanel from '../components/DiffPanel'
 import CodeViewerDrawer from '../components/CodeViewerDrawer'
@@ -134,8 +134,24 @@ export default function GraphPage({ repoId }: Props) {
   const [isolateBlastRadius, setIsolateBlastRadius] = useState(false)
   const [tracedPathNodeId, setTracedPathNodeId] = useState<string | null>(null)
   const [heatmapMode, setHeatmapMode] = useState(false)
+  const [hierarchyInfo, setHierarchyInfo] = useState<HierarchyInfo | null>(null)
+  const [hierarchyScope, setHierarchyScope] = useState<'component' | 'lineage'>('component')
   const { explanation: aiExplanation, loading: aiLoading, request: requestAI, clear: clearAI } = useAI()
   const graphViewerRef = useRef<GraphViewerHandle>(null)
+
+  const handleLayoutHierarchy = (nodeId: string, scope?: 'component' | 'lineage') => {
+    const targetScope = scope ?? hierarchyScope
+    setHierarchyScope(targetScope)
+    const info = graphViewerRef.current?.layoutHierarchy(nodeId, targetScope)
+    if (info) {
+      setHierarchyInfo(info)
+    }
+  }
+
+  const handleResetLayout = () => {
+    graphViewerRef.current?.resetLayout()
+    setHierarchyInfo(null)
+  }
 
   // ── Source Code Viewer State ──────────────────────────────────────────
   const [codeViewerOpen, setCodeViewerOpen] = useState(false)
@@ -230,11 +246,18 @@ export default function GraphPage({ repoId }: Props) {
     }
     // Fly to node with a small delay so the sidebar doesn't obscure the animation
     setTimeout(() => graphViewerRef.current?.focusNode(node.id), 50)
+    // If hierarchy mode is active, rearrange around newly selected node
+    if (hierarchyInfo?.active) {
+      setTimeout(() => handleLayoutHierarchy(node.id, hierarchyScope), 60)
+    }
   }
 
   const handleBackgroundClick = () => {
     setSelectedNode(null)
     setTracedPathNodeId(null)
+    if (hierarchyInfo?.active) {
+      handleResetLayout()
+    }
     if (diffModeOpen) {
       setSidebarTab('diff')
     }
@@ -445,6 +468,37 @@ export default function GraphPage({ repoId }: Props) {
 
           {/* Right — Subgraph Focus + Git Diff Mode button + legend */}
           <div className="flex items-center gap-2.5">
+            {/* Hierarchy Tree Layout Toggle */}
+            {(selectedNode || hierarchyInfo?.active) && (
+              <button
+                onClick={() => {
+                  if (hierarchyInfo?.active) {
+                    handleResetLayout()
+                  } else if (selectedNode) {
+                    handleLayoutHierarchy(selectedNode.id)
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                  hierarchyInfo?.active
+                    ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-md shadow-emerald-500/10'
+                    : 'bg-white/[0.05] border-white/[0.1] text-gray-300 hover:text-white hover:bg-white/[0.08]'
+                }`}
+                title={
+                  hierarchyInfo?.active
+                    ? "Reset graph back to organic layout"
+                    : "Re-arrange all connected nodes into a top-to-bottom hierarchy"
+                }
+              >
+                <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0">
+                  <path d="M8 2v4M8 6l-4 4M8 6l4 4M4 10v3M12 10v3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx="8" cy="2" r="1.5" fill="currentColor"/>
+                  <circle cx="4" cy="13" r="1.5" fill="currentColor"/>
+                  <circle cx="12" cy="13" r="1.5" fill="currentColor"/>
+                </svg>
+                <span>{hierarchyInfo?.active ? 'Exit Hierarchy' : 'Hierarchy Tree'}</span>
+              </button>
+            )}
+
             {/* Focus Subgraph / Full Graph Toggle */}
             {((diffModeOpen && Boolean(diffResult)) || Boolean(impactResult)) && (
               <button
@@ -562,6 +616,7 @@ export default function GraphPage({ repoId }: Props) {
             hiddenTypes={hiddenTypes}
             onNodeClick={handleNodeClick}
             onBackgroundClick={handleBackgroundClick}
+            onHierarchyChange={setHierarchyInfo}
           />
 
           {/* Floating hint when nothing selected and no diff */}
@@ -662,6 +717,12 @@ export default function GraphPage({ repoId }: Props) {
                   aiLoading={aiLoading}
                   onAiRequest={handleAiRequest}
                   onViewSource={handleOpenSource}
+                  onLayoutHierarchy={handleLayoutHierarchy}
+                  onResetLayout={handleResetLayout}
+                  isHierarchyActive={Boolean(hierarchyInfo?.active)}
+                  hierarchyNodeCount={hierarchyInfo?.nodeCount}
+                  hierarchyScope={hierarchyScope}
+                  onScopeChange={setHierarchyScope}
                 />
               </div>
             </div>
