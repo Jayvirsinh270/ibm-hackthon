@@ -155,8 +155,8 @@ const STYLESHEET: any[] = [
   { selector: 'node.subgraph-hidden', style: { 'display': 'none' } },
   { selector: 'edge.subgraph-hidden', style: { 'display': 'none' } },
   // Hierarchy Tree Layout Mode
-  { selector: 'node.hierarchy-dimmed', style: { 'opacity': 0.04, 'events': 'no' } },
-  { selector: 'edge.hierarchy-dimmed', style: { 'opacity': 0.01, 'events': 'no' } },
+  { selector: 'node.hierarchy-dimmed', style: { 'display': 'none' } },
+  { selector: 'edge.hierarchy-dimmed', style: { 'display': 'none' } },
   { selector: 'node.hierarchy-node',
     style: {
       'border-color': '#38bdf8', 'border-width': 2,
@@ -165,12 +165,14 @@ const STYLESHEET: any[] = [
   { selector: 'node.hierarchy-caller',
     style: {
       'background-color': '#064e3b', 'border-color': '#34d399', 'border-width': 2.5,
-      'color': '#a7f3d0', 'text-background-color': '#022c22', 'z-index': 120,
+      'color': '#a7f3d0', 'text-background-color': '#022c22', 'width': 28, 'height': 28,
+      'font-size': '9.5px', 'z-index': 120,
     } },
   { selector: 'node.hierarchy-callee',
     style: {
       'background-color': '#3b0764', 'border-color': '#c084fc', 'border-width': 2.5,
-      'color': '#f3e8ff', 'text-background-color': '#1e053a', 'z-index': 120,
+      'color': '#f3e8ff', 'text-background-color': '#1e053a', 'width': 28, 'height': 28,
+      'font-size': '9.5px', 'z-index': 120,
     } },
   { selector: 'node.hierarchy-target',
     style: {
@@ -383,42 +385,95 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
 
     const sortedTiers = Array.from(tiers.keys()).sort((a, b) => a - b)
     const X_SPACING = 150
-    const Y_TIER_HEIGHT = 160
-    const SUB_ROW_HEIGHT = 80
-    const MAX_PER_ROW = 5
+    const SUB_ROW_HEIGHT = 82
+    const TIER_GAP = 75
 
-    const negativeTiers = sortedTiers.filter(t => t < 0)
-    let currentY = -(negativeTiers.length * Y_TIER_HEIGHT)
+    // Helper: dynamic columns per tier to maintain golden ratio (~1.4 - 1.8)
+    const getMaxPerRow = (count: number) => {
+      if (count <= 5) return Math.max(1, count)
+      if (count <= 10) return 5
+      if (count <= 20) return 6
+      if (count <= 40) return 8
+      if (count <= 70) return 10
+      return Math.min(13, Math.max(8, Math.ceil(Math.sqrt(count * 1.5))))
+    }
 
-    sortedTiers.forEach(t => {
+    const positions = new Map<string, { x: number; y: number }>()
+
+    // Tier 0 (Target Hero Node): centered at (0, 0)
+    const targetTierNodes = tiers.get(0) || []
+    targetTierNodes.forEach((node, idx) => {
+      const count = targetTierNodes.length
+      const startX = -((count - 1) * X_SPACING) / 2
+      positions.set(node.id(), { x: startX + idx * X_SPACING, y: 0 })
+    })
+
+    // Negative tiers (Callers, t < 0): sorted descending towards 0 (e.g. -1 first, then -2)
+    const negativeTiers = sortedTiers.filter(t => t < 0).reverse()
+    let upwardY = 0
+    negativeTiers.forEach(t => {
       const nodesInTier = tiers.get(t) || []
-      const subRows = Math.ceil(nodesInTier.length / MAX_PER_ROW)
+      const count = nodesInTier.length
+      const perRow = getMaxPerRow(count)
+      const subRows = Math.ceil(count / perRow)
+      const tierH = subRows * SUB_ROW_HEIGHT
+
+      upwardY += tierH + TIER_GAP
+      const tierStartY = -upwardY
 
       nodesInTier.forEach((node, idx) => {
-        const subRow = Math.floor(idx / MAX_PER_ROW)
-        const col = idx % MAX_PER_ROW
-        const countInSubRow = Math.min(MAX_PER_ROW, nodesInTier.length - subRow * MAX_PER_ROW)
+        const subRow = Math.floor(idx / perRow)
+        const col = idx % perRow
+        const countInSubRow = Math.min(perRow, count - subRow * perRow)
         const startX = -((countInSubRow - 1) * X_SPACING) / 2
         const x = startX + col * X_SPACING
-        const y = currentY + subRow * SUB_ROW_HEIGHT
-        
+        const y = tierStartY + subRow * SUB_ROW_HEIGHT
+        positions.set(node.id(), { x, y })
+      })
+    })
+
+    // Positive tiers (Callees / Dependencies, t > 0): sorted ascending [1, 2, ...]
+    const positiveTiers = sortedTiers.filter(t => t > 0)
+    let downwardY = TIER_GAP + 20
+    positiveTiers.forEach(t => {
+      const nodesInTier = tiers.get(t) || []
+      const count = nodesInTier.length
+      const perRow = getMaxPerRow(count)
+      const subRows = Math.ceil(count / perRow)
+      const tierStartY = downwardY
+
+      nodesInTier.forEach((node, idx) => {
+        const subRow = Math.floor(idx / perRow)
+        const col = idx % perRow
+        const countInSubRow = Math.min(perRow, count - subRow * perRow)
+        const startX = -((countInSubRow - 1) * X_SPACING) / 2
+        const x = startX + col * X_SPACING
+        const y = tierStartY + subRow * SUB_ROW_HEIGHT
+        positions.set(node.id(), { x, y })
+      })
+
+      downwardY += subRows * SUB_ROW_HEIGHT + TIER_GAP
+    })
+
+    // Smoothly animate each node to its balanced grid position
+    hierarchyNodes.forEach(node => {
+      const pos = positions.get(node.id())
+      if (pos) {
         node.animate({
-          position: { x, y },
+          position: pos,
           duration: 500,
           easing: 'ease-in-out-cubic',
         } as Parameters<typeof node.animate>[0])
-      })
-
-      currentY += Math.max(Y_TIER_HEIGHT, subRows * SUB_ROW_HEIGHT + 50)
+      }
     })
 
-    // Fit camera to the balanced hierarchy
+    // Fit camera to the balanced hierarchy with generous padding so top HUD never blocks it
     setTimeout(() => {
       if (!cyRef.current) return
       cyRef.current.animate({
         fit: {
           eles: hierarchyNodes,
-          padding: 80,
+          padding: 120,
         },
         duration: 550,
         easing: 'ease-in-out-cubic',
@@ -857,9 +912,9 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
 
       {/* Floating Hierarchy Status Banner */}
       {hierarchyInfo && hierarchyInfo.active && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-[#0c1017]/90 border border-cyan-500/30 rounded-2xl px-4 py-2 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-3 duration-300">
-          <div className="flex items-center gap-2.5">
-            <span className="flex items-center justify-center w-7 h-7 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-400">
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 bg-[#0c1017]/95 border border-cyan-500/40 rounded-2xl px-4 py-2 shadow-2xl shadow-cyan-950/40 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-300 max-w-[92vw]">
+          <div className="flex items-center gap-2.5 flex-shrink-0">
+            <span className="flex items-center justify-center w-7 h-7 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 flex-shrink-0 shadow-inner">
               <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4">
                 <path d="M8 2v4M8 6l-4 4M8 6l4 4M4 10v3M12 10v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
                 <circle cx="8" cy="2" r="1.5" fill="currentColor"/>
@@ -867,34 +922,43 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
                 <circle cx="12" cy="13" r="1.5" fill="currentColor"/>
               </svg>
             </span>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-white font-mono">
+                <span className="text-xs font-semibold text-white font-mono truncate max-w-[180px]" title={hierarchyInfo.nodeLabel || hierarchyInfo.nodeId || ''}>
                   {hierarchyInfo.nodeLabel || hierarchyInfo.nodeId}
                 </span>
-                <span className="text-[10px] bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.2 rounded font-medium">
+                <span className="text-[10px] bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">
                   {hierarchyInfo.nodeCount} nodes · {hierarchyInfo.tierCount} tiers
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-0.5">
-                <span className="text-emerald-400 font-medium">▲ {hierarchyInfo.callerCount} Callers</span>
+              <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-0.5 whitespace-nowrap">
+                <span className="text-emerald-400 font-medium flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  {hierarchyInfo.callerCount} Callers
+                </span>
                 <span className="text-gray-600">•</span>
-                <span className="text-sky-300 font-medium">● Target</span>
+                <span className="text-sky-300 font-medium flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                  Target
+                </span>
                 <span className="text-gray-600">•</span>
-                <span className="text-purple-400 font-medium">▼ {hierarchyInfo.calleeCount} Dependencies</span>
+                <span className="text-purple-400 font-medium flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                  {hierarchyInfo.calleeCount} Dependencies
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="h-7 w-px bg-white/[0.08] mx-0.5" />
+          <div className="h-7 w-px bg-white/[0.08] mx-0.5 flex-shrink-0" />
 
           {/* Quick Depth Pills */}
-          <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/[0.06]">
+          <div className="flex items-center gap-1 bg-black/50 p-1 rounded-xl border border-white/[0.08] flex-shrink-0">
             {(['lineage', 'deep', 'component'] as const).map(mode => (
               <button
                 key={mode}
                 onClick={() => layoutHierarchy(hierarchyInfo.nodeId!, mode)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap ${
                   hierarchyInfo.scope === mode
                     ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/40 shadow-sm'
                     : 'text-gray-400 hover:text-white'
@@ -907,14 +971,14 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
                     : 'All connected nodes in balanced cluster'
                 }
               >
-                {mode === 'lineage' ? 'Direct' : mode === 'deep' ? 'Deep (2-Hop)' : 'Cluster'}
+                {mode === 'lineage' ? 'Direct (1-Hop)' : mode === 'deep' ? 'Deep (2-Hop)' : 'Cluster'}
               </button>
             ))}
           </div>
 
           <button
             onClick={resetLayout}
-            className="flex items-center gap-1 text-xs font-medium text-gray-300 hover:text-rose-200 bg-white/[0.06] hover:bg-rose-500/20 border border-white/[0.1] hover:border-rose-500/40 px-3 py-1.5 rounded-xl transition-all"
+            className="flex items-center gap-1 text-xs font-medium text-gray-300 hover:text-rose-200 bg-white/[0.06] hover:bg-rose-500/20 border border-white/[0.1] hover:border-rose-500/40 px-3 py-1.5 rounded-xl transition-all flex-shrink-0 whitespace-nowrap shadow-sm"
             title="Exit hierarchy mode and return to force-directed graph"
           >
             <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3"><path d="M9 3L3 9M3 3l6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>

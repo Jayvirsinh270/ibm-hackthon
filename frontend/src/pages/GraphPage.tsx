@@ -51,67 +51,24 @@ function Legend({ isDiffMode, isHeatmapMode }: { isDiffMode?: boolean; isHeatmap
 
   if (isDiffMode) {
     return (
-      <div className="flex items-center gap-3 text-xs text-gray-400 bg-cyan-950/30 border border-cyan-500/20 px-3 py-1 rounded-lg">
-        <span className="text-cyan-400 font-semibold text-[11px] tracking-wide">Diff Legend:</span>
-        <div className="flex items-center gap-3">
-          {[
-            { label: 'Modified',   color: 'bg-sky-400 ring-2 ring-sky-400/30' },
-            { label: 'Direct',     color: 'bg-amber-500' },
-            { label: 'Transitive', color: 'bg-purple-500' },
-            { label: 'Test Suite', color: 'bg-emerald-400' },
-          ].map(item => (
-            <span key={item.label} className="flex items-center gap-1.5">
-              <span className={`inline-block w-2 h-2 rounded-full ${item.color}`} />
-              <span className="text-gray-300 text-[11px]">{item.label}</span>
-            </span>
-          ))}
-        </div>
+      <div className="flex items-center gap-2.5 text-[11px] text-gray-400">
+        <span className="text-cyan-400 font-semibold">Diff:</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-400 ring-2 ring-sky-400/30" /> Modified</span>
+        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Direct</span>
+        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-purple-400" /> Transitive</span>
+        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Tests</span>
       </div>
     )
   }
 
   return (
-    <div className="flex items-center gap-4 text-xs text-gray-500">
-      <div className="flex items-center gap-3">
-        <span className="text-gray-600 font-medium">Nodes</span>
-        {[
-          { label: 'File',     color: 'bg-gray-400' },
-          { label: 'Class',    color: 'bg-blue-500' },
-          { label: 'Function', color: 'bg-violet-500' },
-          { label: 'Test',     color: 'bg-emerald-500' },
-        ].map(item => (
-          <span key={item.label} className="flex items-center gap-1.5">
-            <span className={`inline-block w-2 h-2 rounded-full ${item.color} opacity-80`} />
-            {item.label}
-          </span>
-        ))}
-      </div>
-      <span className="text-gray-700">·</span>
-      <div className="flex items-center gap-3">
-        <span className="text-gray-600 font-medium">Edges</span>
-        {[
-          { label: 'Import',  color: 'bg-gray-500' },
-          { label: 'Call',    color: 'bg-amber-500' },
-          { label: 'Inherits', color: 'bg-blue-400' },
-          { label: 'Tests',   color: 'bg-emerald-400' },
-        ].map(item => (
-          <span key={item.label} className="flex items-center gap-1.5">
-            <span className={`inline-block w-4 h-0.5 ${item.color} opacity-70 rounded`} />
-            {item.label}
-          </span>
-        ))}
-      </div>
+    <div className="flex items-center gap-3 text-[11px] text-gray-400">
+      <span className="text-gray-500 font-medium">Edges:</span>
+      <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-amber-500 rounded" /> Call</span>
+      <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-gray-500 rounded" /> Import</span>
+      <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-blue-400 rounded" /> Inherits</span>
+      <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-emerald-400 rounded" /> Tests</span>
     </div>
-  )
-}
-
-// ── Stat chip ─────────────────────────────────────────────────────────────
-function StatChip({ label, value }: { label: string; value: number | string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.07] rounded-md px-2.5 py-1 text-xs">
-      <span className="text-gray-300 font-medium tabular-nums">{value}</span>
-      <span className="text-gray-600">{label}</span>
-    </span>
   )
 }
 
@@ -182,6 +139,7 @@ export default function GraphPage({ repoId }: Props) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -192,6 +150,23 @@ export default function GraphPage({ repoId }: Props) {
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // Keyboard shortcut: '/' or 'Ctrl+K' / 'Cmd+K' to focus search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.key === '/' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) &&
+        document.activeElement?.tagName !== 'INPUT' &&
+        document.activeElement?.tagName !== 'TEXTAREA'
+      ) {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+        setSearchOpen(true)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
   // Build the set of highlighted node IDs from impact result
@@ -367,37 +342,37 @@ export default function GraphPage({ repoId }: Props) {
       <div className="flex-1 flex flex-col gap-0 min-w-0 overflow-hidden">
 
         {/* Toolbar */}
-        <div className="relative z-30 flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06] bg-[#0d1017]/90 backdrop-blur-md gap-3">
+        <div className="relative z-30 flex items-center justify-between px-4 py-2 border-b border-white/[0.06] bg-[#0d1017]/95 backdrop-blur-md gap-3 min-h-[50px]">
           {/* Left — stats */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <StatChip value={nodeCount} label="nodes" />
-            <StatChip value={edgeCount} label="edges" />
-            {Object.entries(typeCounts).map(([type, count]) => (
-              <span key={type} className="hidden lg:inline-flex items-center gap-1 text-xs text-gray-600">
-                <span className={`w-1.5 h-1.5 rounded-full ${TYPE_DOT[type] ?? 'bg-gray-500'} opacity-70`} />
-                {count} {type}s
-              </span>
-            ))}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1 text-xs text-gray-300 whitespace-nowrap">
+              <span className="font-semibold text-white tabular-nums">{nodeCount}</span>
+              <span className="text-gray-500">nodes</span>
+              <span className="text-gray-600">·</span>
+              <span className="font-semibold text-white tabular-nums">{edgeCount}</span>
+              <span className="text-gray-500">edges</span>
+            </div>
             <button
               onClick={reload}
-              className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-300 transition-colors ml-1"
-              title="Re-scan repository"
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-200 bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] px-2 py-1 rounded-lg transition-colors whitespace-nowrap"
+              title="Re-scan repository dependencies"
             >
               <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5">
                 <path d="M13.5 8A5.5 5.5 0 112.5 5M2.5 2v3h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-              Re-scan
+              <span className="hidden sm:inline">Re-scan</span>
             </button>
           </div>
 
           {/* Centre — search */}
-          <div ref={searchRef} className="relative flex-1 max-w-sm min-w-[200px]">
-            <div className="flex items-center gap-2 bg-[#121620] border border-white/[0.12] rounded-lg px-2.5 py-1.5 focus-within:border-blue-500/60 focus-within:bg-[#151a26] focus-within:ring-1 focus-within:ring-blue-500/30 transition-all">
-              <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-gray-500 flex-shrink-0">
+          <div ref={searchRef} className="relative flex-1 max-w-sm min-w-[180px]">
+            <div className="flex items-center gap-2 bg-[#121620] border border-white/[0.12] rounded-lg px-2.5 py-1.5 focus-within:border-blue-500/60 focus-within:bg-[#151a26] focus-within:ring-1 focus-within:ring-blue-500/30 transition-all shadow-inner">
+              <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-gray-400 flex-shrink-0">
                 <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.3"/>
                 <path d="M10.5 10.5l3 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
               </svg>
               <input
+                ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true) }}
@@ -406,9 +381,12 @@ export default function GraphPage({ repoId }: Props) {
                   if (e.key === 'Escape') { setSearchQuery(''); setSearchOpen(false) }
                   if (e.key === 'Enter' && searchResults.length > 0) handleSearchSelect(searchResults[0].data)
                 }}
-                placeholder="Search functions, classes, files…"
+                placeholder="Search components… (Press /)"
                 className="flex-1 bg-transparent text-xs text-gray-200 placeholder-gray-500 outline-none min-w-0 font-sans"
               />
+              <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-gray-500 bg-white/[0.05] border border-white/[0.08] rounded">
+                /
+              </kbd>
               {searchQuery && (
                 <button
                   onClick={() => { setSearchQuery(''); setSearchOpen(false) }}
@@ -466,8 +444,8 @@ export default function GraphPage({ repoId }: Props) {
             )}
           </div>
 
-          {/* Right — Subgraph Focus + Git Diff Mode button + legend */}
-          <div className="flex items-center gap-2.5">
+          {/* Right — View Mode Actions */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             {/* Hierarchy Tree Layout Toggle */}
             {(selectedNode || hierarchyInfo?.active) && (
               <button
@@ -478,7 +456,7 @@ export default function GraphPage({ repoId }: Props) {
                     handleLayoutHierarchy(selectedNode.id)
                   }
                 }}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all whitespace-nowrap shadow-sm ${
                   hierarchyInfo?.active
                     ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300 shadow-md shadow-cyan-500/10'
                     : 'bg-white/[0.05] border-white/[0.1] text-gray-300 hover:text-white hover:bg-white/[0.08]'
@@ -503,7 +481,7 @@ export default function GraphPage({ repoId }: Props) {
             {((diffModeOpen && Boolean(diffResult)) || Boolean(impactResult)) && (
               <button
                 onClick={() => setIsolateBlastRadius(prev => !prev)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all whitespace-nowrap shadow-sm ${
                   isolateBlastRadius
                     ? 'bg-purple-500/20 border-purple-500/50 text-purple-300 shadow-md shadow-purple-500/10'
                     : 'bg-white/[0.05] border-white/[0.1] text-gray-300 hover:text-white hover:bg-white/[0.08]'
@@ -521,7 +499,7 @@ export default function GraphPage({ repoId }: Props) {
             {/* Git Churn Heatmap Toggle */}
             <button
               onClick={() => setHeatmapMode(prev => !prev)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all whitespace-nowrap shadow-sm ${
                 heatmapMode
                   ? 'bg-orange-500/20 border-orange-500/50 text-orange-300 shadow-md shadow-orange-500/10'
                   : 'bg-white/[0.05] border-white/[0.1] text-gray-400 hover:text-white hover:bg-white/[0.08]'
@@ -544,7 +522,7 @@ export default function GraphPage({ repoId }: Props) {
                   return next
                 })
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all whitespace-nowrap shadow-sm ${
                 diffModeOpen
                   ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300 shadow-lg shadow-cyan-500/10'
                   : 'bg-white/[0.05] border-white/[0.1] text-gray-300 hover:text-white hover:bg-white/[0.08]'
@@ -559,47 +537,53 @@ export default function GraphPage({ repoId }: Props) {
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse ml-0.5" />
               )}
             </button>
-
-            <div className="hidden md:block">
-              <Legend isDiffMode={diffModeOpen && Boolean(diffResult)} isHeatmapMode={heatmapMode} />
-            </div>
           </div>
         </div>
 
-        {/* Filter chips */}
-        <div className="relative z-20 flex items-center gap-2 px-4 py-1.5 border-b border-white/[0.04] bg-[#0d1017]/40 flex-wrap">
-          <span className="text-[10px] text-gray-600 font-medium uppercase tracking-wider mr-1">Show</span>
-          {[
-            { type: 'file',     label: 'Files',     dot: 'bg-gray-400' },
-            { type: 'class',    label: 'Classes',   dot: 'bg-blue-500' },
-            { type: 'function', label: 'Functions', dot: 'bg-violet-500' },
-            { type: 'test',     label: 'Tests',     dot: 'bg-emerald-500' },
-          ].map(({ type, label, dot }) => {
-            const active = !hiddenTypes.has(type)
-            return (
+        {/* Filter chips & Edge Legend Sub-bar */}
+        <div className="relative z-20 flex items-center justify-between px-4 py-1.5 border-b border-white/[0.04] bg-[#0d1017]/60 backdrop-blur-sm text-xs gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] text-gray-600 font-semibold uppercase tracking-wider mr-1">Show</span>
+            {[
+              { type: 'file',     label: 'Files',     dot: 'bg-gray-400' },
+              { type: 'class',    label: 'Classes',   dot: 'bg-blue-500' },
+              { type: 'function', label: 'Functions', dot: 'bg-violet-500' },
+              { type: 'test',     label: 'Tests',     dot: 'bg-emerald-500' },
+            ].map(({ type, label, dot }) => {
+              const active = !hiddenTypes.has(type)
+              return (
+                <button
+                  key={type}
+                  onClick={() => toggleType(type)}
+                  className={[
+                    'flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-medium border transition-all duration-150',
+                    active
+                      ? 'bg-white/[0.06] border-white/[0.12] text-gray-300'
+                      : 'bg-transparent border-white/[0.04] text-gray-600 line-through',
+                  ].join(' ')}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${active ? dot : 'bg-gray-700'}`} />
+                  {label}
+                  {typeCounts[type] !== undefined && (
+                    <span className="text-[9px] text-gray-500 tabular-nums">({typeCounts[type]})</span>
+                  )}
+                </button>
+              )
+            })}
+            {hiddenTypes.size > 0 && (
               <button
-                key={type}
-                onClick={() => toggleType(type)}
-                className={[
-                  'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-all duration-150',
-                  active
-                    ? 'bg-white/[0.06] border-white/[0.12] text-gray-300'
-                    : 'bg-transparent border-white/[0.04] text-gray-600 line-through',
-                ].join(' ')}
+                onClick={() => setHiddenTypes(new Set())}
+                className="text-[10px] text-cyan-400 hover:text-cyan-300 ml-1 transition-colors underline"
               >
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${active ? dot : 'bg-gray-700'}`} />
-                {label}
+                Reset
               </button>
-            )
-          })}
-          {hiddenTypes.size > 0 && (
-            <button
-              onClick={() => setHiddenTypes(new Set())}
-              className="text-[10px] text-gray-600 hover:text-gray-400 ml-1 transition-colors"
-            >
-              Reset
-            </button>
-          )}
+            )}
+          </div>
+
+          {/* Clean compact legend on right of sub-bar */}
+          <div className="hidden lg:flex items-center gap-3">
+            <Legend isDiffMode={diffModeOpen && Boolean(diffResult)} isHeatmapMode={heatmapMode} />
+          </div>
         </div>
 
         {/* Cytoscape canvas */}
