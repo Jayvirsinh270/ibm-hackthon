@@ -6,9 +6,8 @@ import GraphViewer from '../components/GraphViewer'
 import NodePanel from '../components/NodePanel'
 import { useGraph } from '../hooks/useGraph'
 import { useImpact } from '../hooks/useImpact'
+import { useAI } from '../hooks/useAI'
 import type { GraphNode } from '../types'
-
-// AI hook will be added in Phase 8 — placeholder state for now
 
 interface Props {
   repoId: string
@@ -36,10 +35,7 @@ export default function GraphPage({ repoId }: Props) {
   const { graph, status, error, reload } = useGraph(repoId)
   const { result: impactResult, loading: impactLoading, error: impactError, run: runImpact } = useImpact()
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null)
-  // Phase 8 — AI state placeholders
-  const aiExplanation = null
-  const aiLoading = false
-  const handleAiRequest = () => { /* Phase 8 */ }
+  const { explanation: aiExplanation, loading: aiLoading, request: requestAI, clear: clearAI } = useAI()
 
   // Build the set of highlighted node IDs from impact result
   const highlightIds = useMemo<Set<string>>(() => {
@@ -57,7 +53,14 @@ export default function GraphPage({ repoId }: Props) {
   }
 
   const handleAnalyze = (nodeId: string, description: string) => {
+    clearAI()
     runImpact(repoId, nodeId, description)
+  }
+
+  const handleAiRequest = () => {
+    if (selectedNode) {
+      requestAI(repoId, selectedNode.id, impactResult?.change_description ?? '')
+    }
   }
 
   // ── Loading / error states ────────────────────────────────────────────

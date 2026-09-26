@@ -90,10 +90,13 @@ export async function getImpact(
 
 /** Request an AI explanation for the impact of a selected node. */
 export async function explainImpact(
-  _repoId: string,
-  _nodeId: string,
-  _changeDescription?: string,
-): Promise<AIExplanation> {
-  // TODO: implement in Phase 8
-  throw new Error('Not implemented yet (Phase 8)')
+  repoId: string,
+  nodeId: string,
+  changeDescription?: string,
+): Promise<{ ai: AIExplanation } & Record<string, unknown>> {
+  const { data } = await api.post(`/api/explain/${repoId}`, {
+    node_id: nodeId,
+    change_description: changeDescription ?? '',
+  })
+  return data
 }
