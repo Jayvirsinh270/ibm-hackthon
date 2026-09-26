@@ -3,7 +3,15 @@
 // Base URL is read from the VITE_API_BASE_URL env variable.
 
 import axios from 'axios'
-import type { HealthResponse, ImpactResult, AIExplanation, GraphData, DiffImpactResult } from '../types'
+import type {
+  HealthResponse,
+  ImpactResult,
+  AIExplanation,
+  GraphData,
+  DiffImpactResult,
+  SourceCodeResponse,
+  DiffInspectResponse,
+} from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
@@ -126,5 +134,33 @@ export async function explainDiffImpact(
     diff,
     change_description: changeDescription ?? '',
   })
+  return data
+}
+
+// ── Source Code & Diff Inspector ──────────────────────────────────────────
+
+/** Fetch repository source code for in-app code viewing. */
+export async function getSourceCode(
+  repoId: string,
+  filePath: string,
+  targetLine?: number,
+  startLine?: number,
+  endLine?: number,
+): Promise<SourceCodeResponse> {
+  const params: Record<string, string | number> = { file_path: filePath }
+  if (targetLine !== undefined && targetLine !== null) params.target_line = targetLine
+  if (startLine !== undefined && startLine !== null) params.start_line = startLine
+  if (endLine !== undefined && endLine !== null) params.end_line = endLine
+
+  const { data } = await api.get<SourceCodeResponse>(`/api/source/${repoId}`, { params })
+  return data
+}
+
+/** Parse and inspect raw unified diff files and hunks. */
+export async function inspectDiff(
+  repoId: string,
+  diff: string,
+): Promise<DiffInspectResponse> {
+  const { data } = await api.post<DiffInspectResponse>(`/api/source/diff/${repoId}`, { diff })
   return data
 }

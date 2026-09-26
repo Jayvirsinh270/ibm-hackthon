@@ -18,6 +18,7 @@ interface Props {
   onFocusNode: (nodeId: string) => void
   onTracePath?: (nodeId: string | null) => void
   tracedNodeId?: string | null
+  onViewSource?: (filePath: string, targetLine?: number, symbolName?: string) => void
 }
 
 const SAMPLE_DEMO_DIFF = `diff --git a/auth/service.py b/auth/service.py
@@ -42,6 +43,7 @@ export default function DiffPanel({
   onFocusNode,
   onTracePath,
   tracedNodeId,
+  onViewSource,
 }: Props) {
   const [diffText, setDiffText] = useState('')
   const [description, setDescription] = useState('')
@@ -254,18 +256,44 @@ ${result.ai?.explanation ? `\n#### 🤖 Watsonx AI Migration Assessment\n${resul
               </ul>
             </div>
 
+            {/* Modified Files */}
+            {result.changed_files.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center justify-between">
+                  <span>Modified Files ({result.changed_files.length})</span>
+                  <span className="text-[10px] text-gray-500 lowercase">click to inspect</span>
+                </h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {result.changed_files.map(fp => (
+                    <button
+                      key={fp}
+                      onClick={() => onViewSource?.(fp)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/[0.04] hover:bg-cyan-500/10 border border-white/[0.06] hover:border-cyan-500/30 text-[11px] font-mono text-gray-300 hover:text-cyan-300 transition-colors"
+                      title={`Inspect ${fp}`}
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" className="w-3 h-3 text-cyan-400">
+                        <path d="M3 12V4a1 1 0 011-1h5l3 3v6a1 1 0 01-1 1H4a1 1 0 01-1-1z" stroke="currentColor" strokeWidth="1.2"/>
+                        <path d="M8 3v3h3" stroke="currentColor" strokeWidth="1.2"/>
+                      </svg>
+                      <span className="truncate max-w-[170px]">{fp.split(/[/\\]/).slice(-2).join('/')}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Changed Symbols */}
             <div className="space-y-2">
               <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center justify-between">
                 <span>Directly Modified ({result.changed_symbols.length})</span>
                 <span className="text-[10px] text-gray-500 lowercase">click to focus</span>
               </h3>
-              <div className="space-y-1 max-h-40 overflow-y-auto xray-scrollbar">
+              <div className="space-y-1.5 max-h-48 overflow-y-auto xray-scrollbar">
                 {result.changed_symbols.map(sym => (
-                  <button
+                  <div
                     key={sym.node_id}
                     onClick={() => onFocusNode(sym.node_id)}
-                    className="w-full text-left p-2 rounded-lg bg-cyan-950/20 border border-cyan-500/20 hover:border-cyan-500/40 hover:bg-cyan-950/40 transition-all flex items-center justify-between group"
+                    className="w-full text-left p-2 rounded-lg bg-cyan-950/20 border border-cyan-500/20 hover:border-cyan-500/40 hover:bg-cyan-950/40 transition-all flex items-center justify-between group cursor-pointer"
                   >
                     <div className="min-w-0 flex-1">
                       <span className="text-xs font-mono font-medium text-cyan-300 block truncate group-hover:underline">
@@ -275,10 +303,26 @@ ${result.ai?.explanation ? `\n#### 🤖 Watsonx AI Migration Assessment\n${resul
                         line {sym.line_number} · {sym.file_path.split(/[/\\]/).slice(-2).join('/')}
                       </span>
                     </div>
-                    <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 font-medium">
-                      {sym.type}
-                    </span>
-                  </button>
+                    <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                      <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 font-medium">
+                        {sym.type}
+                      </span>
+                      {onViewSource && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onViewSource(sym.file_path, sym.line_number, sym.label)
+                          }}
+                          className="p-1 rounded bg-white/[0.04] hover:bg-cyan-500/20 text-gray-400 hover:text-cyan-300 border border-white/[0.06] transition-colors"
+                          title="View source at line"
+                        >
+                          <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5">
+                            <path d="M5 4L2 8l3 4M11 4l3 4-3 4M9 2.5l-2 11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -290,17 +334,17 @@ ${result.ai?.explanation ? `\n#### 🤖 Watsonx AI Migration Assessment\n${resul
                   <span>Direct Callers ({result.direct_affected.length})</span>
                   <span className="text-[10px] text-gray-500 lowercase">click to trace path</span>
                 </h3>
-                <div className="space-y-1 max-h-36 overflow-y-auto xray-scrollbar">
+                <div className="space-y-1.5 max-h-40 overflow-y-auto xray-scrollbar">
                   {result.direct_affected.map(d => {
                     const isTraced = tracedNodeId === d.id
                     return (
-                      <button
+                      <div
                         key={d.id}
                         onClick={() => {
                           onFocusNode(d.id)
                           onTracePath?.(isTraced ? null : d.id)
                         }}
-                        className={`w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between group ${
+                        className={`w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between group cursor-pointer ${
                           isTraced
                             ? 'bg-amber-500/20 border-amber-400/60 shadow-md shadow-amber-500/10'
                             : 'bg-amber-950/20 border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-950/40'
@@ -316,10 +360,26 @@ ${result.ai?.explanation ? `\n#### 🤖 Watsonx AI Migration Assessment\n${resul
                             </span>
                           )}
                         </div>
-                        <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 font-medium">
-                          {d.type ?? 'caller'}
-                        </span>
-                      </button>
+                        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                          <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 font-medium">
+                            {d.type ?? 'caller'}
+                          </span>
+                          {onViewSource && d.file_path && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onViewSource(d.file_path as string, undefined, d.label as string | undefined)
+                              }}
+                              className="p-1 rounded bg-white/[0.04] hover:bg-amber-500/20 text-gray-400 hover:text-amber-300 border border-white/[0.06] transition-colors"
+                              title="View source file"
+                            >
+                              <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5">
+                                <path d="M5 4L2 8l3 4M11 4l3 4-3 4M9 2.5l-2 11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     )
                   })}
                 </div>

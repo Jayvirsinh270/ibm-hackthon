@@ -16,6 +16,7 @@ interface Props {
   aiExplanation?: AIExplanation | null
   aiLoading?: boolean
   onAiRequest?: () => void
+  onViewSource?: (filePath: string, targetLine?: number, symbolName?: string) => void
 }
 
 const TYPE_ICON: Record<string, React.ReactElement> = {
@@ -68,6 +69,7 @@ export default function NodePanel({
   aiExplanation,
   aiLoading,
   onAiRequest,
+  onViewSource,
 }: Props) {
   const [changeDesc, setChangeDesc] = useState('')
   const MAX_DESC = 500
@@ -110,6 +112,25 @@ export default function NodePanel({
               <span className="text-amber-400 font-medium">{node.git_churn}</span>{' '}
               git commit{node.git_churn !== 1 ? 's' : ''} in history
             </p>
+          </div>
+        )}
+
+        {/* View Source Code button */}
+        {node.file_path && (
+          <div className="mt-3 pt-2.5 border-t border-white/[0.06]">
+            <button
+              onClick={() => onViewSource?.(node.file_path, node.line_number, node.label)}
+              className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-white/[0.05] hover:bg-cyan-500/10 border border-white/[0.08] hover:border-cyan-500/30 text-xs font-mono text-gray-300 hover:text-cyan-300 transition-all group shadow-sm"
+              title="Inspect source code in-app with target line highlighted"
+            >
+              <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform">
+                <path d="M5 4L2 8l3 4M11 4l3 4-3 4M9 2.5l-2 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span>View Source</span>
+              {node.line_number > 0 && (
+                <span className="text-cyan-400 font-semibold">: {node.line_number}</span>
+              )}
+            </button>
           </div>
         )}
       </div>

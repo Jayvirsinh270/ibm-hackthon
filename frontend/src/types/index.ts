@@ -107,3 +107,27 @@ export interface HealthResponse {
   status: string
   service: string
 }
+
+export interface SourceCodeResponse {
+  repo_id: string
+  file_path: string
+  relative_path: string
+  total_lines: number
+  content: string
+  target_line?: number | null
+  start_line?: number | null
+  end_line?: number | null
+  language: string
+}
+
+export interface DiffHunkFile {
+  file_path: string
+  change_type: string
+  changed_lines: number[]
+  raw_hunks: string[]
+}
+
+export interface DiffInspectResponse {
+  repo_id: string
+  files: DiffHunkFile[]
+}

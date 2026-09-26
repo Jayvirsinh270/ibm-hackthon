@@ -5,6 +5,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import GraphViewer, { type GraphViewerHandle, type DiffHighlightMap } from '../components/GraphViewer'
 import NodePanel from '../components/NodePanel'
 import DiffPanel from '../components/DiffPanel'
+import CodeViewerDrawer from '../components/CodeViewerDrawer'
 import { useGraph } from '../hooks/useGraph'
 import { useImpact } from '../hooks/useImpact'
 import { useDiffImpact } from '../hooks/useDiffImpact'
@@ -135,6 +136,21 @@ export default function GraphPage({ repoId }: Props) {
   const [heatmapMode, setHeatmapMode] = useState(false)
   const { explanation: aiExplanation, loading: aiLoading, request: requestAI, clear: clearAI } = useAI()
   const graphViewerRef = useRef<GraphViewerHandle>(null)
+
+  // ── Source Code Viewer State ──────────────────────────────────────────
+  const [codeViewerOpen, setCodeViewerOpen] = useState(false)
+  const [viewingFilePath, setViewingFilePath] = useState<string | null>(null)
+  const [viewingTargetLine, setViewingTargetLine] = useState<number | null>(null)
+  const [viewingSymbolName, setViewingSymbolName] = useState<string | null>(null)
+  const [viewingChangedLines, setViewingChangedLines] = useState<number[]>([])
+
+  const handleOpenSource = (filePath: string, targetLine?: number, symbolName?: string, changedLines?: number[]) => {
+    setViewingFilePath(filePath)
+    setViewingTargetLine(targetLine ?? null)
+    setViewingSymbolName(symbolName ?? null)
+    setViewingChangedLines(changedLines ?? [])
+    setCodeViewerOpen(true)
+  }
 
   // ── Filter state ──────────────────────────────────────────────────────
   const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set())
@@ -611,6 +627,7 @@ export default function GraphPage({ repoId }: Props) {
               }}
               onTracePath={setTracedPathNodeId}
               tracedNodeId={tracedPathNodeId}
+              onViewSource={handleOpenSource}
             />
           ) : selectedNode ? (
             <div>
@@ -644,12 +661,24 @@ export default function GraphPage({ repoId }: Props) {
                   aiExplanation={aiExplanation}
                   aiLoading={aiLoading}
                   onAiRequest={handleAiRequest}
+                  onViewSource={handleOpenSource}
                 />
               </div>
             </div>
           ) : null}
         </div>
       )}
+
+      {/* ── In-App Source Code Viewer & Diff Inspector Drawer ────────────── */}
+      <CodeViewerDrawer
+        repoId={repoId}
+        filePath={viewingFilePath}
+        targetLine={viewingTargetLine}
+        symbolName={viewingSymbolName}
+        changedLines={viewingChangedLines}
+        isOpen={codeViewerOpen}
+        onClose={() => setCodeViewerOpen(false)}
+      />
     </div>
   )
 }
