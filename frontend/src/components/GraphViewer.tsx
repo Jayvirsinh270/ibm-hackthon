@@ -17,16 +17,19 @@ import type { GraphData, GraphNode } from '../types'
 export interface HierarchyInfo {
   active: boolean
   nodeId: string | null
+  nodeLabel?: string
   nodeCount: number
-  rootCount: number
-  scope: 'component' | 'lineage'
+  callerCount: number
+  calleeCount: number
+  tierCount: number
+  scope: 'lineage' | 'deep' | 'component'
 }
 
 export interface GraphViewerHandle {
   focusNode: (id: string) => void
   tracePath: (targetId: string | null) => void
   exportPng: () => void
-  layoutHierarchy: (nodeId: string, scope?: 'component' | 'lineage') => HierarchyInfo | null
+  layoutHierarchy: (nodeId: string, scope?: 'lineage' | 'deep' | 'component') => HierarchyInfo | null
   resetLayout: () => void
 }
 
@@ -152,27 +155,34 @@ const STYLESHEET: any[] = [
   { selector: 'node.subgraph-hidden', style: { 'display': 'none' } },
   { selector: 'edge.subgraph-hidden', style: { 'display': 'none' } },
   // Hierarchy Tree Layout Mode
-  { selector: 'node.hierarchy-dimmed', style: { 'opacity': 0.08, 'events': 'no' } },
-  { selector: 'edge.hierarchy-dimmed', style: { 'opacity': 0.02, 'events': 'no' } },
+  { selector: 'node.hierarchy-dimmed', style: { 'opacity': 0.04, 'events': 'no' } },
+  { selector: 'edge.hierarchy-dimmed', style: { 'opacity': 0.01, 'events': 'no' } },
   { selector: 'node.hierarchy-node',
     style: {
-      'border-color': '#38bdf8', 'border-width': 2.5,
+      'border-color': '#38bdf8', 'border-width': 2,
       'color': '#e0f2fe', 'opacity': 1, 'z-index': 100,
     } },
-  { selector: 'edge.hierarchy-edge',
+  { selector: 'node.hierarchy-caller',
     style: {
-      'line-color': '#0284c7', 'target-arrow-color': '#38bdf8', 'width': 2.5,
-      'curve-style': 'bezier', 'opacity': 0.95, 'z-index': 95,
+      'background-color': '#064e3b', 'border-color': '#34d399', 'border-width': 2.5,
+      'color': '#a7f3d0', 'text-background-color': '#022c22', 'z-index': 120,
     } },
-  { selector: 'node.hierarchy-root',
+  { selector: 'node.hierarchy-callee',
     style: {
-      'background-color': '#065f46', 'border-color': '#34d399', 'border-width': 3,
-      'color': '#ecfdf5', 'text-background-color': '#064e3b', 'z-index': 110,
+      'background-color': '#3b0764', 'border-color': '#c084fc', 'border-width': 2.5,
+      'color': '#f3e8ff', 'text-background-color': '#1e053a', 'z-index': 120,
     } },
   { selector: 'node.hierarchy-target',
     style: {
-      'background-color': '#b45309', 'border-color': '#f59e0b', 'border-width': 3.5,
-      'color': '#ffffff', 'font-size': '10px', 'text-background-color': '#451a03', 'z-index': 120,
+      'background-color': '#1e3a8a', 'border-color': '#38bdf8', 'border-width': 4,
+      'color': '#ffffff', 'font-size': '11px', 'font-weight': 'bold',
+      'text-background-color': '#082f49', 'text-background-opacity': 0.95,
+      'text-background-padding': '4px', 'width': 36, 'height': 36, 'z-index': 160,
+    } },
+  { selector: 'edge.hierarchy-edge',
+    style: {
+      'line-color': '#38bdf8', 'target-arrow-color': '#38bdf8', 'target-arrow-shape': 'triangle',
+      'arrow-scale': 1.2, 'width': 2.5, 'curve-style': 'bezier', 'opacity': 0.9, 'z-index': 110,
     } },
   // Traced path (gradient cyan illuminated lineage)
   { selector: 'node.path-traced',
@@ -266,84 +276,166 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
   useEffect(() => { onHierarchyChangeRef.current = onHierarchyChange }, [onHierarchyChange])
 
   // ── Hierarchy Tree Layout ───────────────────────────────────────────────
-  const layoutHierarchy = useCallback((nodeId: string, scope: 'component' | 'lineage' = 'component'): HierarchyInfo | null => {
+  const layoutHierarchy = useCallback((nodeId: string, scope: 'lineage' | 'deep' | 'component' = 'lineage'): HierarchyInfo | null => {
     const cy = cyRef.current
     if (!cy) return null
 
     const targetNode = cy.getElementById(nodeId)
     if (targetNode.length === 0) return null
 
-    // Determine the connected elements based on scope
-    let connected: cytoscape.CollectionReturnValue
-    if (scope === 'lineage') {
-      const preds = targetNode.predecessors()
-      const succs = targetNode.successors()
-      connected = targetNode.union(preds).union(succs)
-    } else {
-      connected = targetNode.component()
+    const maxDepth = scope === 'lineage' ? 1 : scope === 'deep' ? 2 : 6
+
+    const nodeTiers = new Map<string, number>()
+    nodeTiers.set(nodeId, 0)
+
+    // Inbound BFS (upstream callers)
+    let currentLevel: NodeSingular[] = [targetNode as unknown as NodeSingular]
+    let depth = 1
+    while (currentLevel.length > 0 && depth <= maxDepth) {
+      const nextLevel: NodeSingular[] = []
+      for (const n of currentLevel) {
+        const callers = n.incomers('edge').sources()
+        callers.forEach(c => {
+          const cNode = c as unknown as NodeSingular
+          if (!nodeTiers.has(cNode.id())) {
+            nodeTiers.set(cNode.id(), -depth)
+            nextLevel.push(cNode)
+          }
+        })
+      }
+      currentLevel = nextLevel
+      depth++
     }
 
-    const connectedNodes = connected.nodes()
-    if (connectedNodes.length === 0) return null
+    // Outbound BFS (downstream callees)
+    currentLevel = [targetNode as unknown as NodeSingular]
+    depth = 1
+    while (currentLevel.length > 0 && depth <= maxDepth) {
+      const nextLevel: NodeSingular[] = []
+      for (const n of currentLevel) {
+        const callees = n.outgoers('edge').targets()
+        callees.forEach(c => {
+          const cNode = c as unknown as NodeSingular
+          if (!nodeTiers.has(cNode.id())) {
+            nodeTiers.set(cNode.id(), depth)
+            nextLevel.push(cNode)
+          }
+        })
+      }
+      currentLevel = nextLevel
+      depth++
+    }
 
-    // Clean previous hierarchy classes
-    cy.elements().removeClass('hierarchy-node hierarchy-edge hierarchy-root hierarchy-target hierarchy-dimmed')
-
-    // Find roots: nodes in connectedNodes that have 0 incoming edges from any other node in connectedNodes
-    let roots = connectedNodes.filter(n => {
-      return (
-        n.incomers('edge').filter(e => {
-          const edge = e as cytoscape.EdgeSingular
-          return connectedNodes.contains(edge.source())
-        }).length === 0
-      )
+    // Direct contextual neighbors (tests, parent file/class)
+    const neighbors = targetNode.neighborhood('node')
+    neighbors.forEach(nb => {
+      if (!nodeTiers.has(nb.id())) {
+        const type = nb.data('type') as string
+        if (type === 'test') {
+          nodeTiers.set(nb.id(), 1)
+        } else if (type === 'file' || type === 'class') {
+          nodeTiers.set(nb.id(), -1)
+        }
+      }
     })
 
-    // If in a cycle or no in-degree 0 found, fall back to target node as root
-    if (roots.length === 0) {
-      roots = targetNode
+    // If 'component' mode, also bring in any remaining component nodes on outer levels
+    if (scope === 'component') {
+      const comp = targetNode.component().nodes()
+      comp.forEach(n => {
+        if (!nodeTiers.has(n.id())) {
+          nodeTiers.set(n.id(), 2)
+        }
+      })
     }
 
-    // Apply visual hierarchy styling
-    cy.elements().difference(connected).addClass('hierarchy-dimmed')
-    connected.nodes().addClass('hierarchy-node')
-    connected.edges().addClass('hierarchy-edge')
-    roots.addClass('hierarchy-root')
+    // Clean previous hierarchy classes
+    cy.elements().removeClass('hierarchy-node hierarchy-edge hierarchy-target hierarchy-caller hierarchy-callee hierarchy-root hierarchy-dimmed')
+
+    // Collect hierarchy elements
+    const hierarchyNodes = cy.nodes().filter(n => nodeTiers.has(n.id()))
+    const hierarchyEdges = hierarchyNodes.connectedEdges().filter(e => {
+      return hierarchyNodes.contains(e.source()) && hierarchyNodes.contains(e.target())
+    })
+    const hierarchyEles = hierarchyNodes.union(hierarchyEdges)
+
+    // Mark styling classes
+    cy.elements().difference(hierarchyEles).addClass('hierarchy-dimmed')
+    hierarchyNodes.addClass('hierarchy-node')
+    hierarchyEdges.addClass('hierarchy-edge')
+
     targetNode.addClass('hierarchy-target')
+    nodeTiers.forEach((tier, id) => {
+      const ele = cy.getElementById(id)
+      if (tier < 0) ele.addClass('hierarchy-caller')
+      else if (tier > 0) ele.addClass('hierarchy-callee')
+    })
 
-    // Run breadthfirst layout on connected elements
-    const layout = connected.layout({
-      name: 'breadthfirst',
-      directed: true,
-      roots: roots,
-      padding: 70,
-      spacingFactor: 1.6,
-      animate: true,
-      animationDuration: 550,
-      avoidOverlap: true,
-      circle: false,
-      grid: false,
-      nodeDimensionsIncludeLabels: true,
-    } as cytoscape.LayoutOptions)
+    // Group by tier
+    const tiers = new Map<number, NodeSingular[]>()
+    for (const [id, tier] of nodeTiers.entries()) {
+      if (!tiers.has(tier)) tiers.set(tier, [])
+      const ele = cy.getElementById(id)
+      if (ele.length > 0) {
+        tiers.get(tier)!.push(ele as unknown as NodeSingular)
+      }
+    }
 
-    layout.one('layoutstop', () => {
-      cy.animate({
+    const sortedTiers = Array.from(tiers.keys()).sort((a, b) => a - b)
+    const X_SPACING = 150
+    const Y_TIER_HEIGHT = 160
+    const SUB_ROW_HEIGHT = 80
+    const MAX_PER_ROW = 5
+
+    const negativeTiers = sortedTiers.filter(t => t < 0)
+    let currentY = -(negativeTiers.length * Y_TIER_HEIGHT)
+
+    sortedTiers.forEach(t => {
+      const nodesInTier = tiers.get(t) || []
+      const subRows = Math.ceil(nodesInTier.length / MAX_PER_ROW)
+
+      nodesInTier.forEach((node, idx) => {
+        const subRow = Math.floor(idx / MAX_PER_ROW)
+        const col = idx % MAX_PER_ROW
+        const countInSubRow = Math.min(MAX_PER_ROW, nodesInTier.length - subRow * MAX_PER_ROW)
+        const startX = -((countInSubRow - 1) * X_SPACING) / 2
+        const x = startX + col * X_SPACING
+        const y = currentY + subRow * SUB_ROW_HEIGHT
+        
+        node.animate({
+          position: { x, y },
+          duration: 500,
+          easing: 'ease-in-out-cubic',
+        } as Parameters<typeof node.animate>[0])
+      })
+
+      currentY += Math.max(Y_TIER_HEIGHT, subRows * SUB_ROW_HEIGHT + 50)
+    })
+
+    // Fit camera to the balanced hierarchy
+    setTimeout(() => {
+      if (!cyRef.current) return
+      cyRef.current.animate({
         fit: {
-          eles: connectedNodes,
-          padding: 70,
+          eles: hierarchyNodes,
+          padding: 80,
         },
         duration: 550,
         easing: 'ease-in-out-cubic',
       } as Parameters<typeof cy.animate>[0])
-    })
+    }, 100)
 
-    layout.run()
+    const callerCount = Array.from(nodeTiers.values()).filter(t => t < 0).length
+    const calleeCount = Array.from(nodeTiers.values()).filter(t => t > 0).length
 
     const info: HierarchyInfo = {
       active: true,
       nodeId,
-      nodeCount: connectedNodes.length,
-      rootCount: roots.length,
+      nodeLabel: (targetNode.data('label') as string) || nodeId,
+      nodeCount: hierarchyNodes.length,
+      callerCount,
+      calleeCount,
+      tierCount: sortedTiers.length,
       scope,
     }
 
@@ -765,24 +857,68 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
 
       {/* Floating Hierarchy Status Banner */}
       {hierarchyInfo && hierarchyInfo.active && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 bg-[#0e131f]/95 border border-cyan-500/40 rounded-full px-4 py-1.5 shadow-2xl backdrop-blur-md">
-          <span className="flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 text-xs">
-            🌳
-          </span>
-          <span className="text-xs font-semibold text-gray-200">
-            Hierarchy Tree:
-          </span>
-          <span className="text-xs text-cyan-300 font-mono">
-            {hierarchyInfo.nodeCount} connected node{hierarchyInfo.nodeCount !== 1 ? 's' : ''}
-          </span>
-          <span className="text-[11px] text-gray-400">
-            ({hierarchyInfo.scope === 'component' ? 'Full Cluster' : 'Direct Lineage'})
-          </span>
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-[#0c1017]/90 border border-cyan-500/30 rounded-2xl px-4 py-2 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-3 duration-300">
+          <div className="flex items-center gap-2.5">
+            <span className="flex items-center justify-center w-7 h-7 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-400">
+              <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4">
+                <path d="M8 2v4M8 6l-4 4M8 6l4 4M4 10v3M12 10v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                <circle cx="8" cy="2" r="1.5" fill="currentColor"/>
+                <circle cx="4" cy="13" r="1.5" fill="currentColor"/>
+                <circle cx="12" cy="13" r="1.5" fill="currentColor"/>
+              </svg>
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-white font-mono">
+                  {hierarchyInfo.nodeLabel || hierarchyInfo.nodeId}
+                </span>
+                <span className="text-[10px] bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.2 rounded font-medium">
+                  {hierarchyInfo.nodeCount} nodes · {hierarchyInfo.tierCount} tiers
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-0.5">
+                <span className="text-emerald-400 font-medium">▲ {hierarchyInfo.callerCount} Callers</span>
+                <span className="text-gray-600">•</span>
+                <span className="text-sky-300 font-medium">● Target</span>
+                <span className="text-gray-600">•</span>
+                <span className="text-purple-400 font-medium">▼ {hierarchyInfo.calleeCount} Dependencies</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="h-7 w-px bg-white/[0.08] mx-0.5" />
+
+          {/* Quick Depth Pills */}
+          <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/[0.06]">
+            {(['lineage', 'deep', 'component'] as const).map(mode => (
+              <button
+                key={mode}
+                onClick={() => layoutHierarchy(hierarchyInfo.nodeId!, mode)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                  hierarchyInfo.scope === mode
+                    ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/40 shadow-sm'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                title={
+                  mode === 'lineage'
+                    ? 'Direct 1-hop callers & callees (Cleanest)'
+                    : mode === 'deep'
+                    ? '2-hop transitive lineage'
+                    : 'All connected nodes in balanced cluster'
+                }
+              >
+                {mode === 'lineage' ? 'Direct' : mode === 'deep' ? 'Deep (2-Hop)' : 'Cluster'}
+              </button>
+            ))}
+          </div>
+
           <button
             onClick={resetLayout}
-            className="ml-1 text-[11px] font-medium text-gray-300 hover:text-white bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.10] px-2.5 py-0.5 rounded-full transition-colors"
+            className="flex items-center gap-1 text-xs font-medium text-gray-300 hover:text-rose-200 bg-white/[0.06] hover:bg-rose-500/20 border border-white/[0.1] hover:border-rose-500/40 px-3 py-1.5 rounded-xl transition-all"
+            title="Exit hierarchy mode and return to force-directed graph"
           >
-            Reset Layout
+            <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3"><path d="M9 3L3 9M3 3l6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+            <span>Exit</span>
           </button>
         </div>
       )}

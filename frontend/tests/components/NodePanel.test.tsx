@@ -92,10 +92,10 @@ describe('NodePanel with Watsonx Purpose Summary', () => {
       />
     )
 
-    const hierarchyBtn = screen.getByText('Hierarchy Tree')
+    const hierarchyBtn = screen.getByText('Arrange Hierarchy Tree')
     expect(hierarchyBtn).toBeDefined()
     fireEvent.click(hierarchyBtn)
-    expect(onLayoutHierarchy).toHaveBeenCalledWith('auth_service.login', 'component')
+    expect(onLayoutHierarchy).toHaveBeenCalledWith('auth_service.login', 'lineage')
   })
 
   it('renders active hierarchy state and triggers reset on click', () => {
@@ -117,12 +117,12 @@ describe('NodePanel with Watsonx Purpose Summary', () => {
       />
     )
 
-    expect(screen.getByText(/Hierarchy: 5 nodes/i)).toBeDefined()
-    const resetBtn = screen.getByText('Reset Layout')
+    expect(screen.getByText(/Hierarchy Active \(5 nodes\)/i)).toBeDefined()
+    const resetBtn = screen.getByText('Reset to Default Layout')
     fireEvent.click(resetBtn)
     expect(onResetLayout).toHaveBeenCalled()
 
-    const scopeBtn = screen.getByText(/Full Cluster ⇄/i)
+    const scopeBtn = screen.getByText('Direct (1-Hop)')
     fireEvent.click(scopeBtn)
     expect(onScopeChange).toHaveBeenCalledWith('lineage')
   })

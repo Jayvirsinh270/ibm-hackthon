@@ -135,11 +135,11 @@ export default function GraphPage({ repoId }: Props) {
   const [tracedPathNodeId, setTracedPathNodeId] = useState<string | null>(null)
   const [heatmapMode, setHeatmapMode] = useState(false)
   const [hierarchyInfo, setHierarchyInfo] = useState<HierarchyInfo | null>(null)
-  const [hierarchyScope, setHierarchyScope] = useState<'component' | 'lineage'>('component')
+  const [hierarchyScope, setHierarchyScope] = useState<'lineage' | 'deep' | 'component'>('lineage')
   const { explanation: aiExplanation, loading: aiLoading, request: requestAI, clear: clearAI } = useAI()
   const graphViewerRef = useRef<GraphViewerHandle>(null)
 
-  const handleLayoutHierarchy = (nodeId: string, scope?: 'component' | 'lineage') => {
+  const handleLayoutHierarchy = (nodeId: string, scope?: 'lineage' | 'deep' | 'component') => {
     const targetScope = scope ?? hierarchyScope
     setHierarchyScope(targetScope)
     const info = graphViewerRef.current?.layoutHierarchy(nodeId, targetScope)
@@ -480,7 +480,7 @@ export default function GraphPage({ repoId }: Props) {
                 }}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
                   hierarchyInfo?.active
-                    ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-md shadow-emerald-500/10'
+                    ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300 shadow-md shadow-cyan-500/10'
                     : 'bg-white/[0.05] border-white/[0.1] text-gray-300 hover:text-white hover:bg-white/[0.08]'
                 }`}
                 title={
@@ -489,7 +489,7 @@ export default function GraphPage({ repoId }: Props) {
                     : "Re-arrange all connected nodes into a top-to-bottom hierarchy"
                 }
               >
-                <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0">
+                <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0">
                   <path d="M8 2v4M8 6l-4 4M8 6l4 4M4 10v3M12 10v3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
                   <circle cx="8" cy="2" r="1.5" fill="currentColor"/>
                   <circle cx="4" cy="13" r="1.5" fill="currentColor"/>

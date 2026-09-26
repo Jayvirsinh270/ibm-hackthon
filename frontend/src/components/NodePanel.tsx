@@ -15,12 +15,12 @@ interface Props {
   aiLoading?: boolean
   onAiRequest?: () => void
   onViewSource?: (filePath: string, targetLine?: number, symbolName?: string) => void
-  onLayoutHierarchy?: (nodeId: string, scope: 'component' | 'lineage') => void
+  onLayoutHierarchy?: (nodeId: string, scope: 'lineage' | 'deep' | 'component') => void
   onResetLayout?: () => void
   isHierarchyActive?: boolean
   hierarchyNodeCount?: number
-  hierarchyScope?: 'component' | 'lineage'
-  onScopeChange?: (scope: 'component' | 'lineage') => void
+  hierarchyScope?: 'lineage' | 'deep' | 'component'
+  onScopeChange?: (scope: 'lineage' | 'deep' | 'component') => void
 }
 
 const TYPE_ICON: Record<string, React.ReactElement> = {
@@ -78,7 +78,7 @@ export default function NodePanel({
   onResetLayout,
   isHierarchyActive,
   hierarchyNodeCount,
-  hierarchyScope = 'component',
+  hierarchyScope = 'lineage',
   onScopeChange,
 }: Props) {
   const [changeDesc, setChangeDesc] = useState('')
@@ -154,72 +154,124 @@ export default function NodePanel({
           </div>
         )}
 
-        {/* Action Buttons: View Source & Hierarchy Tree */}
-        <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex flex-col gap-2">
-          <div className={`grid ${node.file_path ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
-            {node.file_path && (
-              <button
-                onClick={() => onViewSource?.(node.file_path, node.line_number, node.label)}
-                className="flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg bg-white/[0.05] hover:bg-cyan-500/10 border border-white/[0.08] hover:border-cyan-500/30 text-xs font-mono text-gray-300 hover:text-cyan-300 transition-all group shadow-sm"
-                title="Inspect source code in-app with target line highlighted"
-              >
-                <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform flex-shrink-0">
-                  <path d="M5 4L2 8l3 4M11 4l3 4-3 4M9 2.5l-2 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <span className="truncate">View Source</span>
-              </button>
-            )}
+        {/* View Source Code button */}
+        {node.file_path && (
+          <div className="mt-3 pt-2.5 border-t border-white/[0.06]">
+            <button
+              onClick={() => onViewSource?.(node.file_path, node.line_number, node.label)}
+              className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-white/[0.05] hover:bg-cyan-500/10 border border-white/[0.08] hover:border-cyan-500/30 text-xs font-mono text-gray-300 hover:text-cyan-300 transition-all group shadow-sm"
+              title="Inspect source code in-app with target line highlighted"
+            >
+              <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform">
+                <path d="M5 4L2 8l3 4M11 4l3 4-3 4M9 2.5l-2 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span>View Source</span>
+              {node.line_number > 0 && (
+                <span className="text-cyan-400 font-semibold">: {node.line_number}</span>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Hierarchy Tree Layout Card ──────────────────────────────── */}
+      <div className="rounded-xl border border-cyan-500/25 bg-gradient-to-b from-cyan-950/20 via-sky-950/10 to-[#121620] p-3.5 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex items-center justify-center w-6 h-6 rounded-md bg-cyan-500/20 text-cyan-400">
+              <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5">
+                <path d="M8 2v4M8 6l-4 4M8 6l4 4M4 10v3M12 10v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                <circle cx="8" cy="2" r="1.5" fill="currentColor"/>
+                <circle cx="4" cy="13" r="1.5" fill="currentColor"/>
+                <circle cx="12" cy="13" r="1.5" fill="currentColor"/>
+              </svg>
+            </span>
+            <div>
+              <h4 className="text-xs font-semibold text-gray-200">
+                Dependency Hierarchy Tree
+              </h4>
+              <p className="text-[11px] text-gray-400">Callers, target contract & callee flow</p>
+            </div>
+          </div>
+        </div>
+
+        {!isHierarchyActive ? (
+          <div className="mt-3 flex flex-col gap-2">
+            <div className="flex items-center justify-between bg-black/30 p-1 rounded-lg border border-white/[0.06] text-xs">
+              <span className="text-[11px] text-gray-400 pl-2">Flow Depth:</span>
+              <div className="flex items-center gap-1">
+                {(['lineage', 'deep', 'component'] as const).map(mode => (
+                  <button
+                    key={mode}
+                    onClick={() => onScopeChange?.(mode)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all ${
+                      hierarchyScope === mode
+                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {mode === 'lineage' ? 'Direct' : mode === 'deep' ? 'Deep' : 'Cluster'}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <button
-              onClick={() => {
-                if (isHierarchyActive) {
-                  onResetLayout?.()
-                } else {
-                  onLayoutHierarchy?.(node.id, hierarchyScope)
-                }
-              }}
-              className={`flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-xs font-medium transition-all group shadow-sm border ${
-                isHierarchyActive
-                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 shadow-amber-500/10'
-                  : 'bg-white/[0.05] hover:bg-emerald-500/10 border-white/[0.08] hover:border-emerald-500/30 text-gray-300 hover:text-emerald-300'
-              }`}
-              title={
-                isHierarchyActive
-                  ? "Reset graph back to organic force-directed layout"
-                  : "Re-arrange all connected nodes into a top-to-bottom hierarchy"
-              }
+              onClick={() => onLayoutHierarchy?.(node.id, hierarchyScope)}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-cyan-600/25 hover:bg-cyan-600/40 border border-cyan-500/35 hover:border-cyan-400/50 text-cyan-200 text-xs font-semibold transition-all shadow-sm group"
             >
-              <svg viewBox="0 0 16 16" fill="none" className={`w-3.5 h-3.5 ${isHierarchyActive ? 'text-amber-400' : 'text-emerald-400 group-hover:scale-110'} transition-transform flex-shrink-0`}>
+              <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-cyan-300 group-hover:scale-110 transition-transform">
                 <path d="M8 2v4M8 6l-4 4M8 6l4 4M4 10v3M12 10v3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
                 <circle cx="8" cy="2" r="1.5" fill="currentColor"/>
                 <circle cx="4" cy="13" r="1.5" fill="currentColor"/>
                 <circle cx="12" cy="13" r="1.5" fill="currentColor"/>
               </svg>
-              <span className="truncate">{isHierarchyActive ? 'Reset Layout' : 'Hierarchy Tree'}</span>
+              <span>Arrange Hierarchy Tree</span>
             </button>
           </div>
-
-          {/* Active Hierarchy Sub-bar */}
-          {isHierarchyActive && (
-            <div className="p-2 rounded-lg bg-emerald-950/20 border border-emerald-500/25 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-1.5 text-emerald-300 min-w-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-                <span className="truncate">Hierarchy: {hierarchyNodeCount ?? 'Connected'} nodes</span>
+        ) : (
+          <div className="mt-3 flex flex-col gap-2.5">
+            <div className="p-2.5 rounded-lg bg-cyan-950/40 border border-cyan-500/30 flex flex-col gap-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-cyan-300 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                  Hierarchy Active ({hierarchyNodeCount ?? 'Connected'} nodes)
+                </span>
+                <span className="text-[10px] text-gray-400 capitalize bg-white/[0.05] px-1.5 py-0.5 rounded border border-white/[0.08]">
+                  {hierarchyScope === 'lineage' ? '1-Hop Direct' : hierarchyScope === 'deep' ? '2-Hop Deep' : 'Full Cluster'}
+                </span>
               </div>
-              <button
-                onClick={() => {
-                  const nextScope = hierarchyScope === 'component' ? 'lineage' : 'component'
-                  onScopeChange?.(nextScope)
-                  onLayoutHierarchy?.(node.id, nextScope)
-                }}
-                className="text-[10px] text-gray-300 hover:text-cyan-300 px-2 py-0.5 rounded bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-colors flex-shrink-0"
-                title="Switch between entire connected cluster and direct callers/callees lineage"
-              >
-                {hierarchyScope === 'component' ? 'Full Cluster' : 'Lineage'} ⇄
-              </button>
+
+              {/* Depth pills */}
+              <div className="flex items-center justify-between bg-black/40 p-1 rounded-md border border-white/[0.06] text-xs">
+                {(['lineage', 'deep', 'component'] as const).map(mode => (
+                  <button
+                    key={mode}
+                    onClick={() => {
+                      onScopeChange?.(mode)
+                      onLayoutHierarchy?.(node.id, mode)
+                    }}
+                    className={`flex-1 py-1 rounded text-[11px] font-medium transition-all text-center ${
+                      hierarchyScope === mode
+                        ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/40 shadow-sm'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {mode === 'lineage' ? 'Direct (1-Hop)' : mode === 'deep' ? 'Deep (2-Hop)' : 'Cluster'}
+                  </button>
+                ))}
+              </div>
             </div>
-          )}
-        </div>
+
+            <button
+              onClick={onResetLayout}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-white/[0.06] hover:bg-rose-500/20 border border-white/[0.08] hover:border-rose-500/40 text-xs font-medium text-gray-300 hover:text-rose-200 transition-all shadow-sm"
+            >
+              <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3"><path d="M9 3L3 9M3 3l6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+              <span>Reset to Default Layout</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── Watsonx AI Purpose Summary Card ────────────────────────────── */}
