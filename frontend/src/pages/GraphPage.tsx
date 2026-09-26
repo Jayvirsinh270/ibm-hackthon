@@ -1,8 +1,8 @@
 // frontend/src/pages/GraphPage.tsx
 // Main analysis page — graph viewer + node panel + impact results
 
-import { useState, useMemo } from 'react'
-import GraphViewer from '../components/GraphViewer'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import GraphViewer, { type GraphViewerHandle } from '../components/GraphViewer'
 import NodePanel from '../components/NodePanel'
 import { useGraph } from '../hooks/useGraph'
 import { useImpact } from '../hooks/useImpact'
@@ -13,29 +13,93 @@ interface Props {
   repoId: string
 }
 
+// ── Node type color dot ────────────────────────────────────────────────────
+const TYPE_DOT: Record<string, string> = {
+  file:     'bg-gray-400',
+  class:    'bg-blue-500',
+  function: 'bg-violet-500',
+  test:     'bg-emerald-500',
+}
+
 // ── Legend ────────────────────────────────────────────────────────────────
 function Legend() {
   return (
-    <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-      <span className="font-semibold text-gray-400">Nodes:</span>
-      <span><span className="inline-block w-2.5 h-2.5 rounded bg-gray-500 mr-1" />File</span>
-      <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-700 mr-1" />Class</span>
-      <span><span className="inline-block w-2.5 h-2.5 rotate-45 bg-violet-700 mr-1" />Function</span>
-      <span><span className="inline-block w-2.5 h-2.5 rounded bg-emerald-900 mr-1" />Test</span>
-      <span className="ml-2 font-semibold text-gray-400">Edges:</span>
-      <span><span className="inline-block w-3 h-0.5 bg-gray-500 mr-1" />Import</span>
-      <span><span className="inline-block w-3 h-0.5 bg-amber-600 mr-1" />Call</span>
-      <span><span className="inline-block w-3 h-0.5 bg-blue-500 mr-1" />Inherits</span>
-      <span><span className="inline-block w-3 h-0.5 bg-emerald-500 mr-1" />Tests</span>
+    <div className="flex items-center gap-4 text-xs text-gray-500">
+      <div className="flex items-center gap-3">
+        <span className="text-gray-600 font-medium">Nodes</span>
+        {[
+          { label: 'File',     color: 'bg-gray-400' },
+          { label: 'Class',    color: 'bg-blue-500' },
+          { label: 'Function', color: 'bg-violet-500' },
+          { label: 'Test',     color: 'bg-emerald-500' },
+        ].map(item => (
+          <span key={item.label} className="flex items-center gap-1.5">
+            <span className={`inline-block w-2 h-2 rounded-full ${item.color} opacity-80`} />
+            {item.label}
+          </span>
+        ))}
+      </div>
+      <span className="text-gray-700">·</span>
+      <div className="flex items-center gap-3">
+        <span className="text-gray-600 font-medium">Edges</span>
+        {[
+          { label: 'Import',  color: 'bg-gray-500' },
+          { label: 'Call',    color: 'bg-amber-500' },
+          { label: 'Inherits', color: 'bg-blue-400' },
+          { label: 'Tests',   color: 'bg-emerald-400' },
+        ].map(item => (
+          <span key={item.label} className="flex items-center gap-1.5">
+            <span className={`inline-block w-4 h-0.5 ${item.color} opacity-70 rounded`} />
+            {item.label}
+          </span>
+        ))}
+      </div>
     </div>
   )
 }
 
+// ── Stat chip ─────────────────────────────────────────────────────────────
+function StatChip({ label, value }: { label: string; value: number | string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.07] rounded-md px-2.5 py-1 text-xs">
+      <span className="text-gray-300 font-medium tabular-nums">{value}</span>
+      <span className="text-gray-600">{label}</span>
+    </span>
+  )
+}
+
 export default function GraphPage({ repoId }: Props) {
-  const { graph, status, error, reload } = useGraph(repoId)
+  const { graph, status, scanStage, error, reload } = useGraph(repoId)
   const { result: impactResult, loading: impactLoading, error: impactError, run: runImpact } = useImpact()
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null)
   const { explanation: aiExplanation, loading: aiLoading, request: requestAI, clear: clearAI } = useAI()
+  const graphViewerRef = useRef<GraphViewerHandle>(null)
+
+  // ── Filter state ──────────────────────────────────────────────────────
+  const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set())
+  const toggleType = (type: string) => {
+    setHiddenTypes(prev => {
+      const next = new Set(prev)
+      if (next.has(type)) next.delete(type); else next.add(type)
+      return next
+    })
+  }
+
+  // ── Search state ──────────────────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   // Build the set of highlighted node IDs from impact result
   const highlightIds = useMemo<Set<string>>(() => {
@@ -48,9 +112,33 @@ export default function GraphPage({ repoId }: Props) {
     return new Set(ids)
   }, [impactResult])
 
+  // Search results — filter nodes by label (case-insensitive)
+  // MUST be here (before any conditional returns) — Rules of Hooks
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q || !graph) return []
+    return graph.nodes
+      .filter(n => n.data.label.toLowerCase().includes(q) || n.data.id.toLowerCase().includes(q))
+      .slice(0, 10)
+  }, [searchQuery, graph])
+
+  // Per-render graph stats (safe — no hooks, just derived values)
+  const nodeCount   = graph?.nodes.length ?? 0
+  const edgeCount   = graph?.edges.length ?? 0
+  const typeCounts  = useMemo(() => {
+    if (!graph) return {} as Record<string, number>
+    return graph.nodes.reduce((acc, n) => {
+      const t = n.data.type
+      acc[t] = (acc[t] ?? 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+  }, [graph])
+
   const handleNodeClick = (node: GraphNode) => {
     setSelectedNode(node)
     clearAI()
+    // Fly to node with a small delay so the sidebar doesn't obscure the animation
+    setTimeout(() => graphViewerRef.current?.focusNode(node.id), 50)
   }
 
   const handleBackgroundClick = () => {
@@ -68,102 +156,297 @@ export default function GraphPage({ repoId }: Props) {
     }
   }
 
+  const handleSearchSelect = (node: GraphNode) => {
+    setSelectedNode(node)
+    clearAI()
+    setSearchQuery('')
+    setSearchOpen(false)
+    // Pan graph to the selected node
+    setTimeout(() => graphViewerRef.current?.focusNode(node.id), 50)
+  }
+
   // ── Loading / error states ────────────────────────────────────────────
   if (status === 'scanning' && !graph) {
+    const STAGES = [
+      'Parsing Python files…',
+      'Extracting dependencies…',
+      'Reading Git history…',
+      'Building dependency graph…',
+      'Saving graph…',
+    ]
+    const stageIdx  = STAGES.indexOf(scanStage ?? '')
+    const progress  = stageIdx >= 0 ? Math.round(((stageIdx + 1) / STAGES.length) * 100) : 10
+
     return (
-      <div className="flex flex-col items-center justify-center h-96 gap-3">
-        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-gray-400 text-sm">Scanning repository…</p>
-        <p className="text-gray-600 text-xs">Parsing Python files and building dependency graph</p>
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-56px)] gap-6">
+        <div className="relative">
+          <div className="w-12 h-12 border-2 border-blue-500/20 rounded-full" />
+          <div className="w-12 h-12 border-2 border-blue-500 border-t-transparent rounded-full animate-spin absolute inset-0" />
+        </div>
+        <div className="w-64 text-center">
+          <p className="text-gray-300 text-sm font-medium mb-1">Scanning repository…</p>
+          <p className="text-blue-400 text-xs font-medium mb-3 min-h-[16px]">{scanStage ?? 'Starting…'}</p>
+          {/* Progress bar */}
+          <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500 rounded-full transition-all duration-700"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          {/* Stage dots */}
+          <div className="flex justify-between mt-2">
+            {STAGES.map((s, i) => (
+              <span
+                key={s}
+                className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${i <= stageIdx ? 'bg-blue-500' : 'bg-white/[0.08]'}`}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
 
   if (status === 'error') {
     return (
-      <div className="flex flex-col items-center justify-center h-96 gap-3">
-        <p className="text-red-400">⚠ Scan failed</p>
-        <p className="text-gray-500 text-sm">{error}</p>
-        <button onClick={reload} className="text-xs text-blue-400 underline">Retry</button>
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-56px)] gap-4">
+        <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+          <svg viewBox="0 0 16 16" fill="none" className="w-5 h-5 text-red-400">
+            <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M8 5v3.5M8 10.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </div>
+        <div className="text-center">
+          <p className="text-gray-200 font-medium text-sm mb-1">Scan failed</p>
+          <p className="text-gray-500 text-xs mb-3">{error}</p>
+          <button
+            onClick={reload}
+            className="text-xs text-blue-400 hover:text-blue-300 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-md transition-colors"
+          >
+            Retry scan
+          </button>
+        </div>
       </div>
     )
   }
 
   if (!graph) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex items-center justify-center h-[calc(100vh-56px)]">
         <p className="text-gray-600 text-sm animate-pulse">Loading graph…</p>
       </div>
     )
   }
 
-  const nodeCount = graph.nodes.length
-  const edgeCount = graph.edges.length
-
   // ── Main layout ───────────────────────────────────────────────────────
   return (
-    <div className="flex h-[calc(100vh-52px)] overflow-hidden">
+    <div className="flex h-[calc(100vh-56px)] overflow-hidden">
+
       {/* ── Graph canvas ──────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col p-3 gap-2 min-w-0">
+      <div className="flex-1 flex flex-col gap-0 min-w-0 overflow-hidden">
+
         {/* Toolbar */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <p className="text-xs text-gray-500">
-              {nodeCount} nodes · {edgeCount} edges
-            </p>
+        <div className="relative z-30 flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06] bg-[#0d1017]/90 backdrop-blur-md gap-3">
+          {/* Left — stats */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <StatChip value={nodeCount} label="nodes" />
+            <StatChip value={edgeCount} label="edges" />
+            {Object.entries(typeCounts).map(([type, count]) => (
+              <span key={type} className="hidden lg:inline-flex items-center gap-1 text-xs text-gray-600">
+                <span className={`w-1.5 h-1.5 rounded-full ${TYPE_DOT[type] ?? 'bg-gray-500'} opacity-70`} />
+                {count} {type}s
+              </span>
+            ))}
             <button
               onClick={reload}
-              className="text-xs text-gray-600 hover:text-gray-400"
-              title="Re-scan"
+              className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-300 transition-colors ml-1"
+              title="Re-scan repository"
             >
-              ↺ Re-scan
+              <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5">
+                <path d="M13.5 8A5.5 5.5 0 112.5 5M2.5 2v3h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Re-scan
             </button>
           </div>
-          <Legend />
+
+          {/* Centre — search */}
+          <div ref={searchRef} className="relative flex-1 max-w-sm min-w-[200px]">
+            <div className="flex items-center gap-2 bg-[#121620] border border-white/[0.12] rounded-lg px-2.5 py-1.5 focus-within:border-blue-500/60 focus-within:bg-[#151a26] focus-within:ring-1 focus-within:ring-blue-500/30 transition-all">
+              <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-gray-500 flex-shrink-0">
+                <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.3"/>
+                <path d="M10.5 10.5l3 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true) }}
+                onFocus={() => searchQuery && setSearchOpen(true)}
+                onKeyDown={e => {
+                  if (e.key === 'Escape') { setSearchQuery(''); setSearchOpen(false) }
+                  if (e.key === 'Enter' && searchResults.length > 0) handleSearchSelect(searchResults[0].data)
+                }}
+                placeholder="Search functions, classes, files…"
+                className="flex-1 bg-transparent text-xs text-gray-200 placeholder-gray-500 outline-none min-w-0 font-sans"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => { setSearchQuery(''); setSearchOpen(false) }}
+                  className="text-gray-500 hover:text-gray-300 p-0.5 rounded transition-colors flex-shrink-0"
+                >
+                  <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3"><path d="M9 3L3 9M3 3l6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+                </button>
+              )}
+            </div>
+
+            {/* Dropdown results */}
+            {searchOpen && searchResults.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1.5 bg-[#0f131c] border border-white/[0.14] rounded-xl shadow-2xl shadow-black/90 z-50 overflow-hidden backdrop-blur-xl">
+                <div className="px-3 py-1.5 border-b border-white/[0.06] flex items-center justify-between text-[10px] text-gray-500">
+                  <span>{searchResults.length} matching component{searchResults.length !== 1 ? 's' : ''}</span>
+                  <span className="font-mono text-[9px] text-gray-600">Press ↵ to jump</span>
+                </div>
+                <div className="max-h-64 overflow-y-auto xray-scrollbar divide-y divide-white/[0.03]">
+                  {searchResults.map((n, idx) => (
+                    <button
+                      key={n.data.id}
+                      onClick={() => handleSearchSelect(n.data)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-blue-500/10 hover:border-l-2 hover:border-blue-400 transition-all text-left group"
+                    >
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${TYPE_DOT[n.data.type] ?? 'bg-gray-500'} ring-2 ring-black/40`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-medium text-gray-200 group-hover:text-blue-300 transition-colors truncate">
+                            {n.data.label}
+                          </span>
+                          {idx === 0 && (
+                            <span className="text-[9px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-1 py-0.2 rounded font-sans">
+                              Best match
+                            </span>
+                          )}
+                        </div>
+                        {n.data.module_name && (
+                          <span className="text-[10px] text-gray-500 truncate block font-mono">
+                            {n.data.module_name}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-gray-500 bg-white/[0.04] border border-white/[0.06] px-1.5 py-0.5 rounded capitalize flex-shrink-0 font-medium">
+                        {n.data.type}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {searchOpen && searchQuery.trim() && searchResults.length === 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1.5 bg-[#0f131c] border border-white/[0.14] rounded-xl shadow-2xl shadow-black/90 z-50 px-3.5 py-3 text-xs text-gray-400">
+                No nodes match <span className="font-mono text-gray-200">"{searchQuery}"</span>
+              </div>
+            )}
+          </div>
+
+          {/* Right — legend */}
+          <div className="hidden md:block">
+            <Legend />
+          </div>
+        </div>
+
+        {/* Filter chips */}
+        <div className="relative z-20 flex items-center gap-2 px-4 py-1.5 border-b border-white/[0.04] bg-[#0d1017]/40 flex-wrap">
+          <span className="text-[10px] text-gray-600 font-medium uppercase tracking-wider mr-1">Show</span>
+          {[
+            { type: 'file',     label: 'Files',     dot: 'bg-gray-400' },
+            { type: 'class',    label: 'Classes',   dot: 'bg-blue-500' },
+            { type: 'function', label: 'Functions', dot: 'bg-violet-500' },
+            { type: 'test',     label: 'Tests',     dot: 'bg-emerald-500' },
+          ].map(({ type, label, dot }) => {
+            const active = !hiddenTypes.has(type)
+            return (
+              <button
+                key={type}
+                onClick={() => toggleType(type)}
+                className={[
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-all duration-150',
+                  active
+                    ? 'bg-white/[0.06] border-white/[0.12] text-gray-300'
+                    : 'bg-transparent border-white/[0.04] text-gray-600 line-through',
+                ].join(' ')}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${active ? dot : 'bg-gray-700'}`} />
+                {label}
+              </button>
+            )
+          })}
+          {hiddenTypes.size > 0 && (
+            <button
+              onClick={() => setHiddenTypes(new Set())}
+              className="text-[10px] text-gray-600 hover:text-gray-400 ml-1 transition-colors"
+            >
+              Reset
+            </button>
+          )}
         </div>
 
         {/* Cytoscape canvas */}
-        <div className="flex-1 rounded-xl overflow-hidden border border-gray-800">
+        <div className="flex-1 relative z-10 overflow-hidden">
           <GraphViewer
+            ref={graphViewerRef}
             data={graph}
             selectedNodeId={selectedNode?.id ?? null}
             highlightIds={highlightIds}
+            hiddenTypes={hiddenTypes}
             onNodeClick={handleNodeClick}
             onBackgroundClick={handleBackgroundClick}
           />
-        </div>
 
-        {/* Hint */}
-        {!selectedNode && (
-          <p className="text-center text-xs text-gray-700">
-            Click any node to analyse its change impact
-          </p>
-        )}
+          {/* Floating hint when nothing selected */}
+          {!selectedNode && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
+              <div className="flex items-center gap-2 bg-[#161b26]/90 backdrop-blur-md border border-white/[0.08] rounded-full px-4 py-2 text-xs text-gray-400 shadow-xl">
+                <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-gray-500">
+                  <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.5"/>
+                  <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.2"/>
+                </svg>
+                Click any node to analyse its change impact
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Sidebar ───────────────────────────────────────────────────── */}
       {selectedNode && (
-        <div className="w-80 flex-shrink-0 border-l border-gray-800 overflow-y-auto p-4 bg-gray-950">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-300">Node Details</h3>
+        <div className="w-[320px] flex-shrink-0 border-l border-white/[0.06] overflow-y-auto xray-scrollbar bg-[#0d1017]">
+          {/* Sidebar header */}
+          <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-white/[0.06] bg-[#0d1017]/95 backdrop-blur-sm">
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${TYPE_DOT[selectedNode.type] ?? 'bg-gray-400'}`} />
+              <h3 className="text-sm font-semibold text-gray-200">Node Details</h3>
+            </div>
             <button
               onClick={() => setSelectedNode(null)}
-              className="text-gray-600 hover:text-gray-400 text-lg leading-none"
+              className="w-6 h-6 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-all"
+              title="Close"
             >
-              ×
+              <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5">
+                <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
             </button>
           </div>
-          <NodePanel
-            node={selectedNode}
-            repoId={repoId}
-            impactResult={impactResult}
-            impactLoading={impactLoading}
-            impactError={impactError}
-            onAnalyze={handleAnalyze}
-            aiExplanation={aiExplanation}
-            aiLoading={aiLoading}
-            onAiRequest={handleAiRequest}
-          />
+
+          <div className="p-4">
+            <NodePanel
+              node={selectedNode}
+              repoId={repoId}
+              impactResult={impactResult}
+              impactLoading={impactLoading}
+              impactError={impactError}
+              onAnalyze={handleAnalyze}
+              aiExplanation={aiExplanation}
+              aiLoading={aiLoading}
+              onAiRequest={handleAiRequest}
+            />
+          </div>
         </div>
       )}
     </div>

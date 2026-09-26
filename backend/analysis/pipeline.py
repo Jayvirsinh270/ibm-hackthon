@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 def run_pipeline(repo: Repository, db: Session) -> bool:
     """
     Full analysis pipeline for one repository.
-    Updates repo.status throughout.
+    Updates repo.status and repo.scan_stage throughout.
     Returns True on success, False on failure.
     """
     repo_dir = repo.upload_path
@@ -40,25 +40,29 @@ def run_pipeline(repo: Repository, db: Session) -> bool:
         _set_status(repo, RepoStatus.ERROR, "No Python files found", db)
         return False
 
-    _set_status(repo, RepoStatus.SCANNING, None, db)
+    _set_status(repo, RepoStatus.SCANNING, None, db, stage="Parsing Python files…")
 
     try:
         # 1. Parse
         parsed = parse_all_files(file_paths, src_dir)
 
         # 2. Extract edges
+        _set_stage(repo, "Extracting dependencies…", db)
         edges = extract_dependencies(parsed, src_dir)
 
         # 3. Git analysis (optional — returns GitData(available=False) if no .git)
+        _set_stage(repo, "Reading Git history…", db)
         git_data = analyze_git(repo_dir)
 
         # 4. Build graph with git churn data
+        _set_stage(repo, "Building dependency graph…", db)
         G = build_graph(parsed, edges, git_data=git_data)
 
         # 5. Persist
+        _set_stage(repo, "Saving graph…", db)
         save_graph(G, repo_dir)
 
-        _set_status(repo, RepoStatus.READY, None, db)
+        _set_status(repo, RepoStatus.READY, None, db, stage="Ready")
         logger.info(
             f"Pipeline complete: repo_id={repo.id}, "
             f"nodes={G.number_of_nodes()}, edges={G.number_of_edges()}"
@@ -71,7 +75,21 @@ def run_pipeline(repo: Repository, db: Session) -> bool:
         return False
 
 
-def _set_status(repo: Repository, status: RepoStatus, error: str | None, db: Session):
+def _set_stage(repo: Repository, stage: str, db: Session) -> None:
+    """Write just the scan_stage without changing status."""
+    repo.scan_stage = stage
+    db.commit()
+
+
+def _set_status(
+    repo: Repository,
+    status: RepoStatus,
+    error: str | None,
+    db: Session,
+    stage: str | None = None,
+) -> None:
     repo.status = status
     repo.error_message = error
+    if stage is not None:
+        repo.scan_stage = stage
     db.commit()

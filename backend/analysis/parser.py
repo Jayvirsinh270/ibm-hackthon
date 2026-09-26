@@ -78,6 +78,7 @@ class SourceVisitor(ast.NodeVisitor):
                 line_number=node.lineno,
                 bases=bases,
                 methods=methods,
+                end_line_number=getattr(node, "end_lineno", node.lineno),
             )
         )
 
@@ -103,6 +104,7 @@ class SourceVisitor(ast.NodeVisitor):
                 line_number=node.lineno,
                 calls=calls,
                 is_method=self._current_class is not None,
+                end_line_number=getattr(node, "end_lineno", node.lineno),
             )
         )
         self.generic_visit(node)

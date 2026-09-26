@@ -34,3 +34,4 @@ class Repository(Base):
         nullable=False,
     )
     error_message: Mapped[str | None] = Column(String, nullable=True)
+    scan_stage: Mapped[str | None] = Column(String, nullable=True)  # human-readable pipeline stage

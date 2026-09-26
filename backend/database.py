@@ -36,7 +36,47 @@ def get_db():
 
 
 def init_db():
-    """Create all tables. Called at application startup."""
+    """
+    Create all tables and apply any missing columns (safe migration).
+    Called at application startup.
+    SQLAlchemy's create_all() only creates tables that don't exist —
+    it never alters existing ones. We handle new columns manually here
+    so that adding a column to a model never causes a 500 on next deploy.
+    """
     # Import models so Base knows about them
     from backend.models import repository  # noqa: F401
     Base.metadata.create_all(bind=engine)
+    _migrate_columns()
+
+
+def _migrate_columns():
+    """
+    For every mapped table, add any columns that exist in the ORM model
+    but are missing from the live SQLite schema.
+    Uses ALTER TABLE … ADD COLUMN — safe, idempotent, data-preserving.
+    """
+    with engine.connect() as conn:
+        for table in Base.metadata.sorted_tables:
+            result = conn.execute(
+                __import__("sqlalchemy").text(f"PRAGMA table_info({table.name})")
+            )
+            existing = {row[1] for row in result}
+            for col in table.columns:
+                if col.name not in existing:
+                    # Build a minimal column definition for SQLite
+                    col_type = col.type.compile(dialect=engine.dialect)
+                    nullable   = "" if col.nullable else " NOT NULL"
+                    default    = ""
+                    if col.default is not None and hasattr(col.default, "arg"):
+                        arg = col.default.arg
+                        if isinstance(arg, str):
+                            default = f" DEFAULT '{arg}'"
+                        elif isinstance(arg, (int, float)):
+                            default = f" DEFAULT {arg}"
+                    ddl = f"ALTER TABLE {table.name} ADD COLUMN {col.name} {col_type}{nullable}{default}"
+                    conn.execute(__import__("sqlalchemy").text(ddl))
+                    conn.commit()
+                    import logging
+                    logging.getLogger(__name__).info(
+                        f"Migration: added column '{col.name}' to table '{table.name}'"
+                    )

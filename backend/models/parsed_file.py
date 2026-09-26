@@ -18,6 +18,7 @@ class FunctionInfo:
     line_number: int
     calls: list[str]      # names of functions/methods called inside
     is_method: bool       # True when defined inside a class
+    end_line_number: int = 0
 
 
 @dataclass
@@ -26,6 +27,7 @@ class ClassInfo:
     line_number: int
     bases: list[str]      # parent class names
     methods: list[str]    # method names defined in this class
+    end_line_number: int = 0
 
 
 @dataclass

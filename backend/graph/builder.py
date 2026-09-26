@@ -46,6 +46,7 @@ def build_graph(
             file_path=pf.path,
             module_name=pf.module_name,
             line_number=0,
+            end_line_number=0,
             git_churn=churn,
         )
 
@@ -59,6 +60,7 @@ def build_graph(
                 file_path=pf.path,
                 module_name=pf.module_name,
                 line_number=cls.line_number,
+                end_line_number=cls.end_line_number,
                 git_churn=churn,
             )
 
@@ -72,6 +74,7 @@ def build_graph(
                 file_path=pf.path,
                 module_name=pf.module_name,
                 line_number=fn.line_number,
+                end_line_number=fn.end_line_number,
                 git_churn=churn,
             )
 

@@ -108,3 +108,94 @@ async def explain_impact_endpoint(
             "analysis_type":      explanation.analysis_type,
         },
     }
+
+
+class ExplainDiffRequest(BaseModel):
+    diff: str = Field(..., description="Unified git diff string to analyze and explain")
+    change_description: str = Field("", max_length=500)
+
+
+@router.post("/explain/diff/{repo_id}")
+async def explain_diff_endpoint(
+    repo_id: str,
+    body: ExplainDiffRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Run deterministic blast radius analysis for a Git diff, then ask IBM watsonx.ai
+    to explain the impact, highlight risk areas, and suggest a migration and test plan.
+    """
+    from backend.analysis.diff_analyzer import analyze_diff_impact
+
+    repo = db.get(Repository, repo_id)
+    if not repo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
+
+    G = load_graph(repo.upload_path)
+    if G is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Graph not found — run POST /api/scan/{repo_id} first",
+        )
+
+    try:
+        result = analyze_diff_impact(G, body.diff, change_description=body.change_description)
+    except Exception as exc:
+        logger.error(f"Diff impact analysis failed: repo_id={repo_id}: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Diff impact analysis failed: {exc}",
+        )
+
+    sym_summary = f"{len(result.changed_symbols)} symbol{'s' if len(result.changed_symbols) != 1 else ''}"
+    file_summary = f"{len(result.changed_files)} file{'s' if len(result.changed_files) != 1 else ''}"
+
+    ctx = AIContext(
+        selected_node_id=", ".join(s.node_id for s in result.changed_symbols[:5]) or "Modified Files",
+        selected_node_label=f"Git Diff ({sym_summary} in {file_summary})",
+        selected_node_type="git_diff",
+        change_description=body.change_description or f"Git diff touching: {', '.join(result.changed_files[:3])}",
+        direct_affected=result.direct_affected,
+        transitive_affected=result.transitive_affected,
+        related_tests=result.related_tests,
+        risk_level=result.risk.level,
+        risk_score=result.risk.score,
+        max_depth=result.max_depth,
+        contributing_factors=result.risk.contributing_factors,
+    )
+
+    ai = get_ai_service()
+    explanation = await ai.explain_impact(ctx)
+
+    return {
+        "changed_files":       result.changed_files,
+        "changed_symbols":     [
+            {
+                "node_id": s.node_id,
+                "label": s.label,
+                "type": s.type,
+                "file_path": s.file_path,
+                "line_number": s.line_number,
+                "change_type": s.change_type,
+            }
+            for s in result.changed_symbols
+        ],
+        "direct_affected":     result.direct_affected,
+        "transitive_affected": result.transitive_affected,
+        "related_tests":       result.related_tests,
+        "untested_affected":   result.untested_affected,
+        "risk_level":          result.risk.level,
+        "risk_score":          result.risk.score,
+        "contributing_factors": result.risk.contributing_factors,
+        "max_depth":           result.max_depth,
+        "change_description":  body.change_description,
+        "ai": {
+            "available":          explanation.available,
+            "explanation":        explanation.explanation,
+            "risk_areas":         explanation.risk_areas,
+            "migration_plan":     explanation.migration_plan,
+            "recommended_tests":  explanation.recommended_tests,
+            "model_used":         explanation.model_used,
+            "analysis_type":      explanation.analysis_type,
+        },
+    }

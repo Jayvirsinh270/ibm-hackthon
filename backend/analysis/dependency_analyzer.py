@@ -33,14 +33,15 @@ def extract_dependencies(
     # module_name → ParsedFile
     module_map: dict[str, ParsedFile] = {pf.module_name: pf for pf in parsed_files}
 
-    # function/method short-name → list of node_ids that provide it
-    func_name_map: dict[str, list[str]] = defaultdict(list)
+    # module_name → set of short function names defined in that module
+    module_funcs: dict[str, dict[str, str]] = {}  # module → {short_name: node_id}
     for pf in parsed_files:
         if pf.parse_error:
             continue
-        for fn in pf.functions:
-            node_id = _func_node_id(pf.module_name, fn.name)
-            func_name_map[fn.name].append(node_id)
+        module_funcs[pf.module_name] = {
+            fn.name: _func_node_id(pf.module_name, fn.name)
+            for fn in pf.functions
+        }
 
     # class short-name → node_id
     class_name_map: dict[str, str] = {}
@@ -57,17 +58,21 @@ def extract_dependencies(
 
         src_file_id = pf.module_name
 
-        # 1. IMPORT edges  file → imported file
+        # Build the set of modules this file actually imports (resolved)
+        imported_modules: list[str] = []
         for imp in pf.imports:
-            target_module = _resolve_module(imp.module, pf.module_name, imp.is_relative)
-            if target_module and target_module in module_map:
-                target_file_id = target_module
-                if src_file_id != target_file_id:
-                    edges.append(DependencyEdge(
-                        source_id=src_file_id,
-                        target_id=target_file_id,
-                        edge_type=EdgeType.IMPORT,
-                    ))
+            resolved = _resolve_module(imp.module, pf.module_name, imp.is_relative)
+            if resolved and resolved in module_map:
+                imported_modules.append(resolved)
+
+        # 1. IMPORT edges  file → imported file
+        for target_module in imported_modules:
+            if src_file_id != target_module:
+                edges.append(DependencyEdge(
+                    source_id=src_file_id,
+                    target_id=target_module,
+                    edge_type=EdgeType.IMPORT,
+                ))
 
         # 2. INHERITS edges  class → base class
         for cls in pf.classes:
@@ -80,14 +85,24 @@ def extract_dependencies(
                         edge_type=EdgeType.INHERITS,
                     ))
 
-        # 3. CALL edges  function → called function (best-effort name match)
+        # 3. CALL edges  function → called function
+        #    SCOPED: only match targets in modules this file actually imports.
+        #    This prevents generic names like "save" / "get" from creating
+        #    thousands of spurious cross-module edges.
+        scoped_func_map: dict[str, list[str]] = defaultdict(list)
+        for mod in imported_modules:
+            for short_name, node_id in module_funcs.get(mod, {}).items():
+                scoped_func_map[short_name].append(node_id)
+        # Also include functions within the same module (intra-file calls)
+        for short_name, node_id in module_funcs.get(pf.module_name, {}).items():
+            scoped_func_map[short_name].append(node_id)
+
         for fn in pf.functions:
             src_fn_id = _func_node_id(pf.module_name, fn.name)
             for called_name in fn.calls:
-                # strip attribute prefix e.g. "self.db.save" → "save"
+                # strip attribute prefix: "self.db.save" → "save"
                 short = called_name.split(".")[-1]
-                candidates = func_name_map.get(short, [])
-                for target_fn_id in candidates:
+                for target_fn_id in scoped_func_map.get(short, []):
                     if target_fn_id != src_fn_id:
                         edges.append(DependencyEdge(
                             source_id=src_fn_id,
@@ -106,14 +121,12 @@ def extract_dependencies(
                     edge_type=EdgeType.TEST_COVERS,
                 ))
             # also follow import edges from test files
-            for imp in pf.imports:
-                target_module = _resolve_module(imp.module, pf.module_name, imp.is_relative)
-                if target_module and target_module in module_map:
-                    edges.append(DependencyEdge(
-                        source_id=src_file_id,
-                        target_id=target_module,
-                        edge_type=EdgeType.TEST_COVERS,
-                    ))
+            for target_module in imported_modules:
+                edges.append(DependencyEdge(
+                    source_id=src_file_id,
+                    target_id=target_module,
+                    edge_type=EdgeType.TEST_COVERS,
+                ))
 
     # Deduplicate
     seen: set[tuple] = set()

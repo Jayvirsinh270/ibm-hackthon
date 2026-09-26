@@ -60,7 +60,7 @@ export async function scanRepository(repoId: string): Promise<{ repo_id: string;
 }
 
 /** Poll scan status. */
-export async function getScanStatus(repoId: string): Promise<{ repo_id: string; status: string; error_message?: string }> {
+export async function getScanStatus(repoId: string): Promise<{ repo_id: string; status: string; error_message?: string; scan_stage?: string }> {
   const { data } = await api.get(`/api/status/${repoId}`)
   return data
 }

@@ -31,3 +31,27 @@ class ImpactResult:
     risk: RiskAssessment
     max_depth: int
     analysis_type: str = "deterministic"
+
+
+@dataclass
+class ChangedSymbol:
+    node_id: str
+    label: str
+    type: str
+    file_path: str
+    line_number: int
+    change_type: str = "modified"
+
+
+@dataclass
+class DiffImpactResult:
+    changed_files: list[str]
+    changed_symbols: list[ChangedSymbol]
+    direct_affected: list[dict]
+    transitive_affected: list[dict]
+    related_tests: list[dict]
+    untested_affected: list[dict]
+    risk: RiskAssessment
+    max_depth: int
+    change_description: str = ""
+    analysis_type: str = "deterministic"
