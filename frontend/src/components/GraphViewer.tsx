@@ -13,6 +13,7 @@ interface Props {
   selectedNodeId: string | null
   highlightIds: Set<string>
   onNodeClick: (node: GraphNode) => void
+  onBackgroundClick?: () => void
 }
 
 // ── Cytoscape stylesheet ──────────────────────────────────────────────────
@@ -81,9 +82,15 @@ const STYLESHEET: any[] = [
   { selector: 'edge.dimmed',           style: { 'opacity': 0.1 } },
 ]
 
-export default function GraphViewer({ data, selectedNodeId, highlightIds, onNodeClick }: Props) {
+export default function GraphViewer({ data, selectedNodeId, highlightIds, onNodeClick, onBackgroundClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const cyRef        = useRef<Core | null>(null)
+
+  // Keep latest callbacks in refs so the cytoscape listener never goes stale
+  const onNodeClickRef       = useRef(onNodeClick)
+  const onBackgroundClickRef = useRef(onBackgroundClick)
+  useEffect(() => { onNodeClickRef.current = onNodeClick },             [onNodeClick])
+  useEffect(() => { onBackgroundClickRef.current = onBackgroundClick }, [onBackgroundClick])
 
   // ── Init Cytoscape once ───────────────────────────────────────────────
   useEffect(() => {
@@ -97,17 +104,23 @@ export default function GraphViewer({ data, selectedNodeId, highlightIds, onNode
       wheelSensitivity: 0.3,
     })
 
+    // Node click — always calls the LATEST onNodeClick via ref
     cy.on('tap', 'node', (evt) => {
       const node = evt.target as NodeSingular
       const nodeData = node.data() as GraphNode
-      onNodeClick(nodeData)
+      onNodeClickRef.current(nodeData)
     })
 
-    // Click on background → deselect handled by parent via selectedNodeId=null
+    // Background click — deselect
+    cy.on('tap', (evt) => {
+      if (evt.target === cy) {
+        onBackgroundClickRef.current?.()
+      }
+    })
+
     cyRef.current = cy
     return () => { cy.destroy(); cyRef.current = null }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, []) // only run once
 
   // ── Load graph data when it changes ──────────────────────────────────
   useEffect(() => {

@@ -50,6 +50,11 @@ export default function GraphPage({ repoId }: Props) {
 
   const handleNodeClick = (node: GraphNode) => {
     setSelectedNode(node)
+    clearAI()
+  }
+
+  const handleBackgroundClick = () => {
+    setSelectedNode(null)
   }
 
   const handleAnalyze = (nodeId: string, description: string) => {
@@ -118,20 +123,13 @@ export default function GraphPage({ repoId }: Props) {
         </div>
 
         {/* Cytoscape canvas */}
-        <div
-          className="flex-1 rounded-xl overflow-hidden border border-gray-800 cursor-pointer"
-          onClick={(e) => {
-            // Deselect if clicking canvas background
-            if ((e.target as HTMLElement).tagName === 'CANVAS') {
-              setSelectedNode(null)
-            }
-          }}
-        >
+        <div className="flex-1 rounded-xl overflow-hidden border border-gray-800">
           <GraphViewer
             data={graph}
             selectedNodeId={selectedNode?.id ?? null}
             highlightIds={highlightIds}
             onNodeClick={handleNodeClick}
+            onBackgroundClick={handleBackgroundClick}
           />
         </div>
 
