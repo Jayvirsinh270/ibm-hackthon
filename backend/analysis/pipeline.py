@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from backend.analysis.parser import parse_all_files
 from backend.analysis.dependency_analyzer import extract_dependencies
+from backend.analysis.git_analyzer import analyze_git
 from backend.graph.builder import build_graph
 from backend.graph.store import save_graph
 from backend.models.repository import Repository, RepoStatus
@@ -48,10 +49,13 @@ def run_pipeline(repo: Repository, db: Session) -> bool:
         # 2. Extract edges
         edges = extract_dependencies(parsed, src_dir)
 
-        # 3. Build graph (git_data=None until Phase 5)
-        G = build_graph(parsed, edges, git_data=None)
+        # 3. Git analysis (optional — returns GitData(available=False) if no .git)
+        git_data = analyze_git(repo_dir)
 
-        # 4. Persist
+        # 4. Build graph with git churn data
+        G = build_graph(parsed, edges, git_data=git_data)
+
+        # 5. Persist
         save_graph(G, repo_dir)
 
         _set_status(repo, RepoStatus.READY, None, db)
