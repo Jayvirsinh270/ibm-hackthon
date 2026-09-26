@@ -20,7 +20,9 @@ export interface GraphNode {
   label: string
   type: NodeType
   file_path: string
-  git_churn?: number
+  module_name: string
+  line_number: number
+  git_churn: number
 }
 
 export interface GraphEdge {
