@@ -41,12 +41,17 @@ export type RiskLevel = 'HIGH' | 'MEDIUM' | 'LOW'
 
 export interface ImpactResult {
   selected_node_id: string
-  direct_affected: GraphNode[]
-  transitive_affected: GraphNode[]
-  related_tests: GraphNode[]
+  selected_node_label: string
+  selected_node_type: string
+  direct_affected: Array<Record<string, unknown>>
+  transitive_affected: Array<Record<string, unknown>>
+  related_tests: Array<Record<string, unknown>>
   risk_level: RiskLevel
   risk_score: number
+  contributing_factors: string[]
   max_depth: number
+  analysis_type: string
+  change_description: string
 }
 
 // ── AI Explanation ────────────────────────────────────────────────────────

@@ -75,12 +75,15 @@ export async function getGraph(repoId: string): Promise<GraphData> {
 
 /** Run impact analysis for a selected node. */
 export async function getImpact(
-  _repoId: string,
-  _nodeId: string,
-  _changeDescription?: string,
+  repoId: string,
+  nodeId: string,
+  changeDescription?: string,
 ): Promise<ImpactResult> {
-  // TODO: implement in Phase 6
-  throw new Error('Not implemented yet (Phase 6)')
+  const { data } = await api.post<ImpactResult>(`/api/impact/${repoId}`, {
+    node_id: nodeId,
+    change_description: changeDescription ?? '',
+  })
+  return data
 }
 
 // ── AI Explanation ────────────────────────────────────────────────────────
