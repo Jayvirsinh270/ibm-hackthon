@@ -56,6 +56,39 @@ export interface ImpactResult {
   change_description: string
 }
 
+export interface ChangedSymbol {
+  node_id: string
+  label: string
+  type: string
+  file_path: string
+  line_number: number
+  change_type: string
+}
+
+export interface AffectedNodeSummary {
+  id: string
+  label?: string
+  type?: string
+  file_path?: string
+  [key: string]: unknown
+}
+
+export interface DiffImpactResult {
+  changed_files: string[]
+  changed_symbols: ChangedSymbol[]
+  direct_affected: AffectedNodeSummary[]
+  transitive_affected: AffectedNodeSummary[]
+  related_tests: AffectedNodeSummary[]
+  untested_affected: AffectedNodeSummary[]
+  risk_level: RiskLevel
+  risk_score: number
+  contributing_factors: string[]
+  max_depth: number
+  analysis_type: string
+  change_description: string
+  ai?: AIExplanation
+}
+
 // ── AI Explanation ────────────────────────────────────────────────────────
 
 export interface AIExplanation {

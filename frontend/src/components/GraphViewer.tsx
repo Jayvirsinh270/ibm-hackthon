@@ -18,10 +18,18 @@ export interface GraphViewerHandle {
   focusNode: (id: string) => void
 }
 
+export interface DiffHighlightMap {
+  changed: Set<string>
+  direct: Set<string>
+  transitive: Set<string>
+  tests: Set<string>
+}
+
 interface Props {
   data: GraphData
   selectedNodeId: string | null
   highlightIds: Set<string>
+  diffHighlights?: DiffHighlightMap | null
   hiddenTypes?: Set<string>
   onNodeClick: (node: GraphNode) => void
   onBackgroundClick?: () => void
@@ -94,11 +102,32 @@ const STYLESHEET: any[] = [
       'background-color': '#1d4ed8', 'border-color': '#60a5fa', 'border-width': 3,
       'color': '#ffffff', 'font-size': '10px', 'text-background-color': '#1e3a5f', 'z-index': 99,
     } },
-  // Highlighted
+  // Highlighted (single node mode)
   { selector: 'node.highlighted',
     style: {
       'background-color': '#78350f', 'border-color': '#f59e0b', 'border-width': 2,
       'color': '#fbbf24', 'text-background-color': '#292524', 'z-index': 50,
+    } },
+  // Git Diff Mode Highlights
+  { selector: 'node.changed-symbol',
+    style: {
+      'background-color': '#0284c7', 'border-color': '#38bdf8', 'border-width': 3,
+      'color': '#ffffff', 'font-size': '10px', 'text-background-color': '#075985', 'z-index': 95,
+    } },
+  { selector: 'node.direct-affected',
+    style: {
+      'background-color': '#9a3412', 'border-color': '#fb923c', 'border-width': 2.5,
+      'color': '#ffedd5', 'text-background-color': '#431407', 'z-index': 85,
+    } },
+  { selector: 'node.transitive-affected',
+    style: {
+      'background-color': '#581c87', 'border-color': '#c084fc', 'border-width': 2,
+      'color': '#f3e8ff', 'text-background-color': '#3b0764', 'z-index': 75,
+    } },
+  { selector: 'node.related-test',
+    style: {
+      'background-color': '#065f46', 'border-color': '#34d399', 'border-width': 2,
+      'color': '#ecfdf5', 'text-background-color': '#064e3b', 'z-index': 80,
     } },
   // Dimmed
   { selector: 'node.dimmed',    style: { 'opacity': 0.15 } },
@@ -138,6 +167,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
   data,
   selectedNodeId,
   highlightIds,
+  diffHighlights,
   hiddenTypes,
   onNodeClick,
   onBackgroundClick,
@@ -262,8 +292,40 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
     const cy = cyRef.current
     if (!cy) return
 
-    cy.nodes().removeClass('selected highlighted dimmed')
+    cy.nodes().removeClass('selected highlighted dimmed changed-symbol direct-affected transitive-affected related-test')
     cy.edges().removeClass('highlighted dimmed')
+
+    // Git Diff Mode Highlights
+    if (diffHighlights) {
+      const allActive = new Set([
+        ...diffHighlights.changed,
+        ...diffHighlights.direct,
+        ...diffHighlights.transitive,
+        ...diffHighlights.tests,
+      ])
+
+      cy.nodes().forEach(n => {
+        const id = n.id()
+        if (diffHighlights.changed.has(id)) {
+          n.addClass('changed-symbol')
+        } else if (diffHighlights.direct.has(id)) {
+          n.addClass('direct-affected')
+        } else if (diffHighlights.transitive.has(id)) {
+          n.addClass('transitive-affected')
+        } else if (diffHighlights.tests.has(id)) {
+          n.addClass('related-test')
+        } else {
+          n.addClass('dimmed')
+        }
+      })
+
+      cy.edges().forEach(e => {
+        const s = e.source().id(), t = e.target().id()
+        const onPath = allActive.has(s) && allActive.has(t)
+        e.addClass(onPath ? 'highlighted' : 'dimmed')
+      })
+      return
+    }
 
     if (!selectedNodeId) return
 
@@ -281,7 +343,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
         e.addClass(onPath ? 'highlighted' : 'dimmed')
       })
     }
-  }, [selectedNodeId, highlightIds])
+  }, [selectedNodeId, highlightIds, diffHighlights])
 
   // ── Hidden types ─────────────────────────────────────────────────────────
   useEffect(() => {

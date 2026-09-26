@@ -2,10 +2,12 @@
 // Main analysis page — graph viewer + node panel + impact results
 
 import { useState, useMemo, useRef, useEffect } from 'react'
-import GraphViewer, { type GraphViewerHandle } from '../components/GraphViewer'
+import GraphViewer, { type GraphViewerHandle, type DiffHighlightMap } from '../components/GraphViewer'
 import NodePanel from '../components/NodePanel'
+import DiffPanel from '../components/DiffPanel'
 import { useGraph } from '../hooks/useGraph'
 import { useImpact } from '../hooks/useImpact'
+import { useDiffImpact } from '../hooks/useDiffImpact'
 import { useAI } from '../hooks/useAI'
 import type { GraphNode } from '../types'
 
@@ -22,7 +24,28 @@ const TYPE_DOT: Record<string, string> = {
 }
 
 // ── Legend ────────────────────────────────────────────────────────────────
-function Legend() {
+function Legend({ isDiffMode }: { isDiffMode?: boolean }) {
+  if (isDiffMode) {
+    return (
+      <div className="flex items-center gap-3 text-xs text-gray-400 bg-cyan-950/30 border border-cyan-500/20 px-3 py-1 rounded-lg">
+        <span className="text-cyan-400 font-semibold text-[11px] tracking-wide">Diff Legend:</span>
+        <div className="flex items-center gap-3">
+          {[
+            { label: 'Modified',   color: 'bg-sky-400 ring-2 ring-sky-400/30' },
+            { label: 'Direct',     color: 'bg-amber-500' },
+            { label: 'Transitive', color: 'bg-purple-500' },
+            { label: 'Test Suite', color: 'bg-emerald-400' },
+          ].map(item => (
+            <span key={item.label} className="flex items-center gap-1.5">
+              <span className={`inline-block w-2 h-2 rounded-full ${item.color}`} />
+              <span className="text-gray-300 text-[11px]">{item.label}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex items-center gap-4 text-xs text-gray-500">
       <div className="flex items-center gap-3">
@@ -71,7 +94,19 @@ function StatChip({ label, value }: { label: string; value: number | string }) {
 export default function GraphPage({ repoId }: Props) {
   const { graph, status, scanStage, error, reload } = useGraph(repoId)
   const { result: impactResult, loading: impactLoading, error: impactError, run: runImpact } = useImpact()
+  const {
+    result: diffResult,
+    loading: diffLoading,
+    aiLoading: diffAiLoading,
+    error: diffError,
+    run: runDiff,
+    runWithAi: runDiffWithAi,
+    clear: clearDiff,
+  } = useDiffImpact()
+
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null)
+  const [diffModeOpen, setDiffModeOpen] = useState(false)
+  const [sidebarTab, setSidebarTab] = useState<'diff' | 'node'>('diff')
   const { explanation: aiExplanation, loading: aiLoading, request: requestAI, clear: clearAI } = useAI()
   const graphViewerRef = useRef<GraphViewerHandle>(null)
 
@@ -112,6 +147,17 @@ export default function GraphPage({ repoId }: Props) {
     return new Set(ids)
   }, [impactResult])
 
+  // Build the diff blast radius highlight map
+  const diffHighlights = useMemo<DiffHighlightMap | undefined>(() => {
+    if (!diffModeOpen || !diffResult) return undefined
+    return {
+      changed: new Set(diffResult.changed_symbols.map(s => s.node_id)),
+      direct: new Set(diffResult.direct_affected.map(n => n.id)),
+      transitive: new Set(diffResult.transitive_affected.map(n => n.id)),
+      tests: new Set(diffResult.related_tests.map(n => n.id)),
+    }
+  }, [diffModeOpen, diffResult])
+
   // Search results — filter nodes by label (case-insensitive)
   // MUST be here (before any conditional returns) — Rules of Hooks
   const searchResults = useMemo(() => {
@@ -137,12 +183,18 @@ export default function GraphPage({ repoId }: Props) {
   const handleNodeClick = (node: GraphNode) => {
     setSelectedNode(node)
     clearAI()
+    if (diffModeOpen) {
+      setSidebarTab('node')
+    }
     // Fly to node with a small delay so the sidebar doesn't obscure the animation
     setTimeout(() => graphViewerRef.current?.focusNode(node.id), 50)
   }
 
   const handleBackgroundClick = () => {
     setSelectedNode(null)
+    if (diffModeOpen) {
+      setSidebarTab('diff')
+    }
   }
 
   const handleAnalyze = (nodeId: string, description: string) => {
@@ -161,6 +213,9 @@ export default function GraphPage({ repoId }: Props) {
     clearAI()
     setSearchQuery('')
     setSearchOpen(false)
+    if (diffModeOpen) {
+      setSidebarTab('node')
+    }
     // Pan graph to the selected node
     setTimeout(() => graphViewerRef.current?.focusNode(node.id), 50)
   }
@@ -345,9 +400,35 @@ export default function GraphPage({ repoId }: Props) {
             )}
           </div>
 
-          {/* Right — legend */}
-          <div className="hidden md:block">
-            <Legend />
+          {/* Right — Git Diff Mode button + legend */}
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => {
+                setDiffModeOpen(prev => {
+                  const next = !prev
+                  if (next) setSidebarTab('diff')
+                  return next
+                })
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                diffModeOpen
+                  ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300 shadow-lg shadow-cyan-500/10'
+                  : 'bg-white/[0.05] border-white/[0.1] text-gray-300 hover:text-white hover:bg-white/[0.08]'
+              }`}
+              title="Analyze Git diff blast radius"
+            >
+              <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0">
+                <path d="M4 3a1.5 1.5 0 100 3 1.5 1.5 0 000-3zM4 10a1.5 1.5 0 100 3 1.5 1.5 0 000-3zM12 10a1.5 1.5 0 100 3 1.5 1.5 0 000-3zM4 6v4M4 7.5c2 0 4 1 8 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span>Git Diff Mode</span>
+              {diffResult && (
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse ml-0.5" />
+              )}
+            </button>
+
+            <div className="hidden md:block">
+              <Legend isDiffMode={diffModeOpen && Boolean(diffResult)} />
+            </div>
           </div>
         </div>
 
@@ -394,59 +475,110 @@ export default function GraphPage({ repoId }: Props) {
             data={graph}
             selectedNodeId={selectedNode?.id ?? null}
             highlightIds={highlightIds}
+            diffHighlights={diffHighlights}
             hiddenTypes={hiddenTypes}
             onNodeClick={handleNodeClick}
             onBackgroundClick={handleBackgroundClick}
           />
 
-          {/* Floating hint when nothing selected */}
-          {!selectedNode && (
+          {/* Floating hint when nothing selected and no diff */}
+          {!selectedNode && !diffResult && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
               <div className="flex items-center gap-2 bg-[#161b26]/90 backdrop-blur-md border border-white/[0.08] rounded-full px-4 py-2 text-xs text-gray-400 shadow-xl">
                 <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-gray-500">
                   <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.5"/>
                   <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.2"/>
                 </svg>
-                Click any node to analyse its change impact
+                {diffModeOpen ? 'Git Diff Mode active — paste unified diff or load sample' : 'Click any node to analyse its change impact, or open Git Diff Mode'}
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Sidebar ───────────────────────────────────────────────────── */}
-      {selectedNode && (
-        <div className="w-[320px] flex-shrink-0 border-l border-white/[0.06] overflow-y-auto xray-scrollbar bg-[#0d1017]">
-          {/* Sidebar header */}
-          <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-white/[0.06] bg-[#0d1017]/95 backdrop-blur-sm">
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${TYPE_DOT[selectedNode.type] ?? 'bg-gray-400'}`} />
-              <h3 className="text-sm font-semibold text-gray-200">Node Details</h3>
+      {/* ── Sidebar (DiffPanel or NodePanel) ─────────────────────────── */}
+      {(diffModeOpen || selectedNode) && (
+        <div className="w-[380px] flex-shrink-0 border-l border-white/[0.06] overflow-y-auto xray-scrollbar bg-[#0d1017] flex flex-col">
+          {/* Tab switcher when both diff mode and node are active */}
+          {diffModeOpen && selectedNode && (
+            <div className="flex items-center border-b border-white/[0.06] bg-[#0d1017]/95 px-2 pt-2 gap-1 sticky top-0 z-20">
+              <button
+                onClick={() => setSidebarTab('diff')}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-t-md transition-colors border-b-2 flex items-center justify-center gap-1.5 ${
+                  sidebarTab === 'diff'
+                    ? 'border-cyan-400 text-cyan-300 bg-white/[0.04]'
+                    : 'border-transparent text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                Diff Analysis
+              </button>
+              <button
+                onClick={() => setSidebarTab('node')}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-t-md transition-colors border-b-2 flex items-center justify-center gap-1.5 ${
+                  sidebarTab === 'node'
+                    ? 'border-blue-400 text-blue-300 bg-white/[0.04]'
+                    : 'border-transparent text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${TYPE_DOT[selectedNode.type] ?? 'bg-gray-400'}`} />
+                <span className="truncate max-w-[120px]">{selectedNode.label}</span>
+              </button>
             </div>
-            <button
-              onClick={() => setSelectedNode(null)}
-              className="w-6 h-6 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-all"
-              title="Close"
-            >
-              <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5">
-                <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-            </button>
-          </div>
+          )}
 
-          <div className="p-4">
-            <NodePanel
-              node={selectedNode}
+          {/* Panel view */}
+          {diffModeOpen && (!selectedNode || sidebarTab === 'diff') ? (
+            <DiffPanel
               repoId={repoId}
-              impactResult={impactResult}
-              impactLoading={impactLoading}
-              impactError={impactError}
-              onAnalyze={handleAnalyze}
-              aiExplanation={aiExplanation}
-              aiLoading={aiLoading}
-              onAiRequest={handleAiRequest}
+              result={diffResult}
+              loading={diffLoading}
+              aiLoading={diffAiLoading}
+              error={diffError}
+              onAnalyze={(diff, desc) => runDiff(repoId, diff, desc)}
+              onRequestAI={(diff, desc) => runDiffWithAi(repoId, diff, desc)}
+              onClear={clearDiff}
+              onClose={() => setDiffModeOpen(false)}
+              onFocusNode={(nodeId) => {
+                graphViewerRef.current?.focusNode(nodeId)
+              }}
             />
-          </div>
+          ) : selectedNode ? (
+            <div>
+              {/* Sidebar header (when only node is open) */}
+              {!diffModeOpen && (
+                <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-white/[0.06] bg-[#0d1017]/95 backdrop-blur-sm">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${TYPE_DOT[selectedNode.type] ?? 'bg-gray-400'}`} />
+                    <h3 className="text-sm font-semibold text-gray-200">Node Details</h3>
+                  </div>
+                  <button
+                    onClick={() => setSelectedNode(null)}
+                    className="w-6 h-6 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-all"
+                    title="Close"
+                  >
+                    <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5">
+                      <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              <div className="p-4">
+                <NodePanel
+                  node={selectedNode}
+                  repoId={repoId}
+                  impactResult={impactResult}
+                  impactLoading={impactLoading}
+                  impactError={impactError}
+                  onAnalyze={handleAnalyze}
+                  aiExplanation={aiExplanation}
+                  aiLoading={aiLoading}
+                  onAiRequest={handleAiRequest}
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
     </div>

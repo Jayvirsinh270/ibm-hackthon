@@ -3,7 +3,7 @@
 // Base URL is read from the VITE_API_BASE_URL env variable.
 
 import axios from 'axios'
-import type { HealthResponse, ImpactResult, AIExplanation, GraphData } from '../types'
+import type { HealthResponse, ImpactResult, AIExplanation, GraphData, DiffImpactResult } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
@@ -96,6 +96,34 @@ export async function explainImpact(
 ): Promise<{ ai: AIExplanation } & Record<string, unknown>> {
   const { data } = await api.post(`/api/explain/${repoId}`, {
     node_id: nodeId,
+    change_description: changeDescription ?? '',
+  })
+  return data
+}
+
+// ── Git Diff Impact ───────────────────────────────────────────────────────
+
+/** Run blast radius analysis for a Git diff. */
+export async function getDiffImpact(
+  repoId: string,
+  diff: string,
+  changeDescription?: string,
+): Promise<DiffImpactResult> {
+  const { data } = await api.post<DiffImpactResult>(`/api/impact/diff/${repoId}`, {
+    diff,
+    change_description: changeDescription ?? '',
+  })
+  return data
+}
+
+/** Request AI explanation and migration plan for a Git diff. */
+export async function explainDiffImpact(
+  repoId: string,
+  diff: string,
+  changeDescription?: string,
+): Promise<DiffImpactResult> {
+  const { data } = await api.post<DiffImpactResult>(`/api/explain/diff/${repoId}`, {
+    diff,
     change_description: changeDescription ?? '',
   })
   return data
