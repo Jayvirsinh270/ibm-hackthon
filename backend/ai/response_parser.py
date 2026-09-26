@@ -82,11 +82,14 @@ class ResponseParser:
             return []
         items = []
         for line in text.splitlines():
+            sline = line.strip()
+            if sline.startswith(("#", "The final answer", "EXPLANATION:", "RISK_AREAS:", "MIGRATION_PLAN:", "RECOMMENDED_TESTS:")):
+                continue
             # Strip bullets: -, *, •, numbers like "1.", "1)"
             clean = re.sub(r"^[\s]*[-*•][\s]*", "", line)
             clean = re.sub(r"^[\s]*\d+[.)]\s*", "", clean)
             clean = clean.strip()
-            if clean:
+            if clean and not clean.startswith(("\\boxed", "#")):
                 items.append(clean)
         return items
 
@@ -114,22 +117,36 @@ class ResponseParser:
                 analysis_type="fallback",
             )
 
-        # Extract sections using NODE_SUMMARY_MARKERS
-        positions: list[tuple[str, int]] = []
-        upper = raw.upper()
-        for key, marker in cls.NODE_SUMMARY_MARKERS.items():
-            idx = upper.find(marker)
-            if idx != -1:
-                positions.append((key, idx + len(marker)))
-
-        positions.sort(key=lambda x: x[1])
-
+        # 1. Try flexible regex patterns
+        patterns = {
+            "purpose": r"(?:[0-9]+\.\s*)?(?:\*\*|###?\s*)?(?:Function[\s_]+)?Purpose(?:\*\*)?\s*:\s*(.*?)(?=(?:[0-9]+\.\s*)?(?:\*\*|###?\s*)?(?:Function[\s_]+)?(?:Responsibilities|Inputs|Architectural|Complexity)|\Z)",
+            "responsibilities": r"(?:[0-9]+\.\s*)?(?:\*\*|###?\s*)?(?:Function[\s_]+)?Responsibilities(?:\*\*)?\s*:\s*(.*?)(?=(?:[0-9]+\.\s*)?(?:\*\*|###?\s*)?(?:Inputs|Architectural|Complexity)|\Z)",
+            "inputs_and_outputs": r"(?:[0-9]+\.\s*)?(?:\*\*|###?\s*)?(?:Inputs?[\s_]+(?:and[\s_]+)?Outputs?|Contract)(?:\*\*)?\s*:\s*(.*?)(?=(?:[0-9]+\.\s*)?(?:\*\*|###?\s*)?(?:Architectural|Complexity)|\Z)",
+            "architectural_role": r"(?:[0-9]+\.\s*)?(?:\*\*|###?\s*)?(?:Architectural[\s_]+Role)(?:\*\*)?\s*:\s*(.*?)(?=(?:[0-9]+\.\s*)?(?:\*\*|###?\s*)?(?:Complexity)|\Z)",
+            "complexity_rating": r"(?:[0-9]+\.\s*)?(?:\*\*|###?\s*)?(?:Complexity[\s_]+Rating)(?:\*\*)?\s*:\s*(.*?)(?=\Z|\n\n)",
+        }
         sections: dict[str, str] = {}
-        for i, (key, start) in enumerate(positions):
-            end = positions[i + 1][1] - len(
-                cls.NODE_SUMMARY_MARKERS[positions[i + 1][0]]
-            ) if i + 1 < len(positions) else len(raw)
-            sections[key] = raw[start:end].strip()
+        for key, pat in patterns.items():
+            m = re.search(pat, raw, re.IGNORECASE | re.DOTALL)
+            if m and m.group(1).strip():
+                sections[key] = m.group(1).strip()
+
+        # 2. Fallback to exact markers if regex missed
+        if not sections.get("purpose"):
+            positions: list[tuple[str, int]] = []
+            upper = raw.upper()
+            for key, marker in cls.NODE_SUMMARY_MARKERS.items():
+                idx = upper.find(marker)
+                if idx != -1:
+                    positions.append((key, idx + len(marker)))
+
+            positions.sort(key=lambda x: x[1])
+
+            for i, (key, start) in enumerate(positions):
+                end = positions[i + 1][1] - len(
+                    cls.NODE_SUMMARY_MARKERS[positions[i + 1][0]]
+                ) if i + 1 < len(positions) else len(raw)
+                sections[key] = raw[start:end].strip()
 
         purpose = sections.get("purpose") or raw[:300].strip()
         responsibilities = cls._parse_list(sections.get("responsibilities", ""))

@@ -39,6 +39,17 @@ class WatsonxAdapter(AIService):
                 api_key=settings.WATSONX_API_KEY,
             )
             client = APIClient(credentials)
+            if settings.WATSONX_PROJECT_ID:
+                try:
+                    client.set.default_project(settings.WATSONX_PROJECT_ID)
+                except Exception as p_err:
+                    logger.warning(f"Could not set default project: {p_err}")
+            elif settings.WATSONX_SPACE_ID:
+                try:
+                    client.set.default_space(settings.WATSONX_SPACE_ID)
+                except Exception as s_err:
+                    logger.warning(f"Could not set default space: {s_err}")
+
             kwargs = {
                 "model_id": self._model_id,
                 "api_client": client,
@@ -53,9 +64,24 @@ class WatsonxAdapter(AIService):
             elif settings.WATSONX_SPACE_ID:
                 kwargs["space_id"] = settings.WATSONX_SPACE_ID
 
-            self._model = ModelInference(**kwargs)
-            self._available = True
-            logger.info(f"watsonx.ai initialised — model={self._model_id}")
+            candidate_models = [self._model_id]
+            for fallback in ["meta-llama/llama-3-3-70b-instruct", "ibm/granite-4-h-small"]:
+                if fallback not in candidate_models:
+                    candidate_models.append(fallback)
+
+            for cand in candidate_models:
+                try:
+                    kwargs["model_id"] = cand
+                    self._model = ModelInference(**kwargs)
+                    self._model_id = cand
+                    self._available = True
+                    logger.info(f"watsonx.ai initialised successfully — model={cand}")
+                    break
+                except Exception as m_err:
+                    logger.warning(f"Could not initialize watsonx model {cand}: {m_err}")
+
+            if not self._available:
+                logger.warning("watsonx.ai: No candidate model could be initialized in this environment.")
 
         except Exception as exc:
             logger.warning(f"watsonx.ai initialisation failed: {type(exc).__name__}: {exc}")
