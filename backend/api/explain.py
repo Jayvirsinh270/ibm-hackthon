@@ -263,12 +263,29 @@ async def explain_node_endpoint(
         if os.path.exists(target_path) and os.path.isfile(target_path):
             try:
                 with open(target_path, "r", encoding="utf-8", errors="replace") as f:
-                    lines = f.readlines()
-                start_line = max(1, line_number)
-                end_line = max(start_line, end_line_number)
-                end_line = min(end_line, start_line + 99, len(lines))
-                snippet_lines = lines[start_line - 1 : end_line]
-                source_code = "".join(snippet_lines)
+                    full_content = f.read()
+
+                # Try to extract the exact symbol via AST
+                import ast
+                try:
+                    tree = ast.parse(full_content)
+                    for n in ast.walk(tree):
+                        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                            if getattr(n, "name", "") == label:
+                                source_code = ast.unparse(n)
+                                if not docstring:
+                                    docstring = ast.get_docstring(n) or ""
+                                break
+                except Exception:
+                    pass
+
+                # Fallback to line slicing
+                if not source_code:
+                    lines = full_content.splitlines(keepends=True)
+                    start_line = max(1, line_number)
+                    raw_end = end_line_number if end_line_number > start_line else (start_line + 50)
+                    end_line = min(raw_end, start_line + 99, len(lines))
+                    source_code = "".join(lines[start_line - 1 : end_line])
             except Exception as e:
                 logger.warning(f"Could not read source code for node {body.node_id}: {e}")
 
