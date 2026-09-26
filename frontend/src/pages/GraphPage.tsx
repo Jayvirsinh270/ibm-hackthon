@@ -107,6 +107,8 @@ export default function GraphPage({ repoId }: Props) {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null)
   const [diffModeOpen, setDiffModeOpen] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<'diff' | 'node'>('diff')
+  const [isolateBlastRadius, setIsolateBlastRadius] = useState(false)
+  const [tracedPathNodeId, setTracedPathNodeId] = useState<string | null>(null)
   const { explanation: aiExplanation, loading: aiLoading, request: requestAI, clear: clearAI } = useAI()
   const graphViewerRef = useRef<GraphViewerHandle>(null)
 
@@ -192,6 +194,7 @@ export default function GraphPage({ repoId }: Props) {
 
   const handleBackgroundClick = () => {
     setSelectedNode(null)
+    setTracedPathNodeId(null)
     if (diffModeOpen) {
       setSidebarTab('diff')
     }
@@ -400,8 +403,27 @@ export default function GraphPage({ repoId }: Props) {
             )}
           </div>
 
-          {/* Right — Git Diff Mode button + legend */}
+          {/* Right — Subgraph Focus + Git Diff Mode button + legend */}
           <div className="flex items-center gap-2.5">
+            {/* Focus Subgraph / Full Graph Toggle */}
+            {((diffModeOpen && Boolean(diffResult)) || Boolean(impactResult)) && (
+              <button
+                onClick={() => setIsolateBlastRadius(prev => !prev)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                  isolateBlastRadius
+                    ? 'bg-purple-500/20 border-purple-500/50 text-purple-300 shadow-md shadow-purple-500/10'
+                    : 'bg-white/[0.05] border-white/[0.1] text-gray-300 hover:text-white hover:bg-white/[0.08]'
+                }`}
+                title={isolateBlastRadius ? "Show full repository graph" : "Isolate blast radius and hide unaffected nodes"}
+              >
+                <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-purple-400 flex-shrink-0">
+                  <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3"/>
+                  <circle cx="8" cy="8" r="2.5" fill="currentColor"/>
+                </svg>
+                <span>{isolateBlastRadius ? 'Full Graph' : 'Focus Subgraph'}</span>
+              </button>
+            )}
+
             <button
               onClick={() => {
                 setDiffModeOpen(prev => {
@@ -476,6 +498,8 @@ export default function GraphPage({ repoId }: Props) {
             selectedNodeId={selectedNode?.id ?? null}
             highlightIds={highlightIds}
             diffHighlights={diffHighlights}
+            isolateBlastRadius={isolateBlastRadius}
+            tracedPathNodeId={tracedPathNodeId}
             hiddenTypes={hiddenTypes}
             onNodeClick={handleNodeClick}
             onBackgroundClick={handleBackgroundClick}
@@ -542,6 +566,8 @@ export default function GraphPage({ repoId }: Props) {
               onFocusNode={(nodeId) => {
                 graphViewerRef.current?.focusNode(nodeId)
               }}
+              onTracePath={setTracedPathNodeId}
+              tracedNodeId={tracedPathNodeId}
             />
           ) : selectedNode ? (
             <div>

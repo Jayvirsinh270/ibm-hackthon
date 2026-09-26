@@ -16,6 +16,8 @@ import type { GraphData, GraphNode } from '../types'
 
 export interface GraphViewerHandle {
   focusNode: (id: string) => void
+  tracePath: (targetId: string | null) => void
+  exportPng: () => void
 }
 
 export interface DiffHighlightMap {
@@ -30,6 +32,8 @@ interface Props {
   selectedNodeId: string | null
   highlightIds: Set<string>
   diffHighlights?: DiffHighlightMap | null
+  isolateBlastRadius?: boolean
+  tracedPathNodeId?: string | null
   hiddenTypes?: Set<string>
   onNodeClick: (node: GraphNode) => void
   onBackgroundClick?: () => void
@@ -133,6 +137,26 @@ const STYLESHEET: any[] = [
   { selector: 'node.dimmed',    style: { 'opacity': 0.15 } },
   { selector: 'node.type-hidden', style: { 'display': 'none' } },
   { selector: 'edge.type-hidden', style: { 'display': 'none' } },
+  { selector: 'node.subgraph-hidden', style: { 'display': 'none' } },
+  { selector: 'edge.subgraph-hidden', style: { 'display': 'none' } },
+  // Traced path (gradient cyan illuminated lineage)
+  { selector: 'node.path-traced',
+    style: {
+      'border-color': '#00f0ff',
+      'border-width': 3.5,
+      'color': '#ffffff',
+      'text-background-color': '#083344',
+      'z-index': 110,
+    } },
+  { selector: 'edge.path-traced',
+    style: {
+      'line-color': '#00f0ff',
+      'target-arrow-color': '#00f0ff',
+      'width': 3.5,
+      'opacity': 1,
+      'curve-style': 'bezier',
+      'z-index': 105,
+    } },
   // Hovered
   { selector: 'node.hovered',   style: { 'border-color': '#e5e7eb', 'border-width': 2, 'z-index': 60 } },
 
@@ -168,6 +192,8 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
   selectedNodeId,
   highlightIds,
   diffHighlights,
+  isolateBlastRadius,
+  tracedPathNodeId,
   hiddenTypes,
   onNodeClick,
   onBackgroundClick,
@@ -181,7 +207,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
   useEffect(() => { onNodeClickRef.current = onNodeClick },             [onNodeClick])
   useEffect(() => { onBackgroundClickRef.current = onBackgroundClick }, [onBackgroundClick])
 
-  // Expose focusNode to parent via ref
+  // Expose focusNode, tracePath, and exportPng to parent via ref
   useImperativeHandle(ref, () => ({
     focusNode: (id: string) => {
       const cy = cyRef.current
@@ -195,7 +221,59 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
         easing: 'ease-in-out-cubic',
       } as Parameters<typeof cy.animate>[0])
     },
-  }), [])
+    tracePath: (targetId: string | null) => {
+      const cy = cyRef.current
+      if (!cy) return
+      cy.elements().removeClass('path-traced')
+      if (!targetId) return
+
+      const targetEle = cy.getElementById(targetId)
+      if (targetEle.length === 0) return
+
+      let rootIds: string[] = []
+      if (diffHighlights && diffHighlights.changed.size > 0) {
+        rootIds = Array.from(diffHighlights.changed)
+      } else if (selectedNodeId) {
+        rootIds = [selectedNodeId]
+      }
+
+      if (rootIds.length === 0) return
+
+      let bestPath: cytoscape.CollectionReturnValue | null = null
+      let shortestDist = Infinity
+
+      for (const rId of rootIds) {
+        const rootEle = cy.getElementById(rId)
+        if (rootEle.length === 0) continue
+        const res = cy.elements().aStar({
+          root: rootEle,
+          goal: targetEle,
+          directed: false,
+        })
+        if (res.found && res.distance < shortestDist) {
+          shortestDist = res.distance
+          bestPath = res.path
+        }
+      }
+
+      if (bestPath) {
+        bestPath.addClass('path-traced')
+      }
+    },
+    exportPng: () => {
+      const cy = cyRef.current
+      if (!cy) return
+      const dataUri = cy.png({
+        full: true,
+        bg: '#0a0c10',
+        scale: 2,
+      })
+      const link = document.createElement('a')
+      link.download = `xray-blast-radius-${Date.now()}.png`
+      link.href = dataUri
+      link.click()
+    },
+  }), [diffHighlights, selectedNodeId])
 
   // Zoom helpers
   const zoomIn  = useCallback(() => {
@@ -368,6 +446,101 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
     })
   }, [hiddenTypes])
 
+  // ── Subgraph Isolation ───────────────────────────────────────────────────
+  useEffect(() => {
+    const cy = cyRef.current
+    if (!cy) return
+
+    cy.elements().removeClass('subgraph-hidden')
+
+    if (!isolateBlastRadius) {
+      return
+    }
+
+    let activeIds: Set<string> | null = null
+    if (diffHighlights) {
+      activeIds = new Set([
+        ...diffHighlights.changed,
+        ...diffHighlights.direct,
+        ...diffHighlights.transitive,
+        ...diffHighlights.tests,
+      ])
+    } else if (selectedNodeId) {
+      activeIds = new Set([selectedNodeId, ...highlightIds])
+    }
+
+    if (!activeIds || activeIds.size === 0) return
+
+    cy.nodes().forEach(n => {
+      if (!activeIds!.has(n.id())) {
+        n.addClass('subgraph-hidden')
+      }
+    })
+
+    cy.edges().forEach(e => {
+      const s = e.source().id(), t = e.target().id()
+      if (!activeIds!.has(s) || !activeIds!.has(t)) {
+        e.addClass('subgraph-hidden')
+      }
+    })
+
+    // Layout the isolated visible nodes in a clean DAG
+    const visibleNodes = cy.nodes(':visible')
+    if (visibleNodes.length > 0) {
+      visibleNodes.layout({
+        name: 'breadthfirst',
+        directed: true,
+        padding: 60,
+        animate: true,
+        animationDuration: 350,
+        spacingFactor: 1.3,
+      } as cytoscape.LayoutOptions).run()
+      cy.fit(undefined, 60)
+    }
+  }, [isolateBlastRadius, diffHighlights, selectedNodeId, highlightIds])
+
+  // ── Traced Path Effect ───────────────────────────────────────────────────
+  useEffect(() => {
+    const cy = cyRef.current
+    if (!cy) return
+
+    cy.elements().removeClass('path-traced')
+    if (!tracedPathNodeId) return
+
+    const targetEle = cy.getElementById(tracedPathNodeId)
+    if (targetEle.length === 0) return
+
+    let rootIds: string[] = []
+    if (diffHighlights && diffHighlights.changed.size > 0) {
+      rootIds = Array.from(diffHighlights.changed)
+    } else if (selectedNodeId) {
+      rootIds = [selectedNodeId]
+    }
+
+    if (rootIds.length === 0) return
+
+    let bestPath: cytoscape.CollectionReturnValue | null = null
+    let shortestDist = Infinity
+
+    for (const rId of rootIds) {
+      const rootEle = cy.getElementById(rId)
+      if (rootEle.length === 0) continue
+      const res = cy.elements().aStar({
+        root: rootEle,
+        goal: targetEle,
+        directed: false,
+      })
+      if (res.found && res.distance < shortestDist) {
+        shortestDist = res.distance
+        bestPath = res.path
+      }
+    }
+
+    if (bestPath) {
+      bestPath.addClass('path-traced')
+    }
+  }, [tracedPathNodeId, diffHighlights, selectedNodeId])
+
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="relative w-full h-full">
@@ -377,8 +550,26 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
         style={{ background: '#0a0c10' }}
       />
 
-      {/* Zoom controls */}
-      <div className="absolute bottom-4 right-4 flex flex-col gap-1 z-10">
+      {/* Canvas tools (export + zoom) */}
+      <div className="absolute bottom-4 right-4 flex flex-col gap-1.5 z-10">
+        <button
+          onClick={() => {
+            const cy = cyRef.current
+            if (!cy) return
+            const dataUri = cy.png({ full: true, bg: '#0a0c10', scale: 2 })
+            const link = document.createElement('a')
+            link.download = `xray-blast-radius-${Date.now()}.png`
+            link.href = dataUri
+            link.click()
+          }}
+          title="Export high-resolution PNG"
+          className="w-8 h-8 rounded-lg bg-[#161b26]/90 backdrop-blur-sm border border-white/[0.10] text-gray-400 hover:text-cyan-300 hover:bg-[#1e2433] transition-all flex items-center justify-center shadow-lg group"
+        >
+          <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 group-hover:scale-110 transition-transform">
+            <path d="M2.5 5.5A1.5 1.5 0 014 4h1.5l1-1.5h3l1 1.5H12a1.5 1.5 0 011.5 1.5v6a1.5 1.5 0 01-1.5 1.5H4a1.5 1.5 0 01-1.5-1.5v-6z" stroke="currentColor" strokeWidth="1.3"/>
+            <circle cx="8" cy="8.5" r="2.5" stroke="currentColor" strokeWidth="1.3"/>
+          </svg>
+        </button>
         <button
           onClick={fitAll}
           title="Fit all nodes"
