@@ -42,11 +42,23 @@ def analyze_git(repo_path: str, max_commits: int = 200) -> GitData:
     max_commits caps how many commits we inspect (keeps it fast for large repos).
     Returns GitData(available=False) on any error.
     """
-    try:
-        import git  # imported lazily so the rest of the app works without gitpython
-        repo = git.Repo(repo_path, search_parent_directories=True)
-    except Exception as exc:
-        logger.info(f"Git not available at {repo_path}: {type(exc).__name__}")
+    import os
+    candidates = [repo_path]
+    src_path = os.path.join(repo_path, "src")
+    if os.path.isdir(src_path):
+        candidates.append(src_path)
+
+    repo = None
+    for p in candidates:
+        try:
+            import git  # imported lazily so the rest of the app works without gitpython
+            repo = git.Repo(p, search_parent_directories=True)
+            break
+        except Exception:
+            continue
+
+    if not repo:
+        logger.info(f"Git not available at {repo_path}")
         return GitData(available=False)
 
     try:

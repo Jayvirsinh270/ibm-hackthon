@@ -44,6 +44,7 @@ from backend.api.graph import router as graph_router      # stub — Phase 4
 from backend.api.impact import router as impact_router    # stub — Phase 6
 from backend.api.explain import router as explain_router  # stub — Phase 8
 from backend.api.source import router as source_router
+from backend.api.clone import router as clone_router
 
 app.include_router(upload_router, prefix="/api")
 app.include_router(scan_router,   prefix="/api")
@@ -51,6 +52,7 @@ app.include_router(graph_router,  prefix="/api")
 app.include_router(impact_router, prefix="/api")
 app.include_router(explain_router, prefix="/api")
 app.include_router(source_router, prefix="/api")
+app.include_router(clone_router,  prefix="/api")
 
 
 # ---------------------------------------------------------------------------

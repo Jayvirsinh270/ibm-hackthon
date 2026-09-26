@@ -11,6 +11,7 @@ import type {
   DiffImpactResult,
   SourceCodeResponse,
   DiffInspectResponse,
+  CloneResponse,
 } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
@@ -162,5 +163,29 @@ export async function inspectDiff(
   diff: string,
 ): Promise<DiffInspectResponse> {
   const { data } = await api.post<DiffInspectResponse>(`/api/source/diff/${repoId}`, { diff })
+  return data
+}
+
+// ── Git Clone & Demo Repositories ─────────────────────────────────────────
+
+/** Clone a remote Git repository by URL. */
+export async function cloneRepository(
+  url: string,
+  branch?: string,
+  token?: string,
+  depth: number = 50,
+): Promise<CloneResponse> {
+  const { data } = await api.post<CloneResponse>('/api/clone', {
+    url,
+    branch: branch || undefined,
+    token: token || undefined,
+    depth,
+  })
+  return data
+}
+
+/** Provision an instant interactive demo repository. */
+export async function loadDemoRepository(scenario: string = 'auth_service'): Promise<CloneResponse> {
+  const { data } = await api.post<CloneResponse>('/api/demo', { scenario })
   return data
 }

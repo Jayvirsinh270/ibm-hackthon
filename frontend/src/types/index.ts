@@ -131,3 +131,12 @@ export interface DiffInspectResponse {
   repo_id: string
   files: DiffHunkFile[]
 }
+
+export interface CloneResponse {
+  repo_id: string
+  name: string
+  file_count: number
+  status: string
+  source_url?: string
+  branch?: string
+}
