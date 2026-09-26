@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     WATSONX_API_KEY: str = ""
     WATSONX_URL: str = "https://us-south.ml.cloud.ibm.com"
     WATSONX_PROJECT_ID: str = ""
+    WATSONX_SPACE_ID: str = ""
     WATSONX_MODEL_ID: str = "ibm/granite-13b-chat-v2"
 
     # AI provider selection: "watsonx" or "mock"

@@ -12,6 +12,7 @@ import type {
   SourceCodeResponse,
   DiffInspectResponse,
   CloneResponse,
+  NodeSummaryResponse,
 } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
@@ -109,6 +110,18 @@ export async function explainImpact(
   })
   return data
 }
+
+/** Request an AI purpose summary for a selected function or node. */
+export async function explainNode(
+  repoId: string,
+  nodeId: string,
+): Promise<NodeSummaryResponse> {
+  const { data } = await api.post<NodeSummaryResponse>(`/api/explain/node/${repoId}`, {
+    node_id: nodeId,
+  })
+  return data
+}
+
 
 // ── Git Diff Impact ───────────────────────────────────────────────────────
 

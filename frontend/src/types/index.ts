@@ -140,3 +140,21 @@ export interface CloneResponse {
   source_url?: string
   branch?: string
 }
+
+export interface NodeSummaryResponse {
+  node_id: string
+  label: string
+  node_type: string
+  purpose: string
+  responsibilities: string[]
+  inputs_and_outputs: string
+  architectural_role: string
+  complexity_rating: 'LOW' | 'MEDIUM' | 'HIGH'
+  model_used: string
+  analysis_type: string
+  callers: string[]
+  callees: string[]
+  file_path: string
+  line_number: number
+}
+

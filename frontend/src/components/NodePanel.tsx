@@ -1,10 +1,8 @@
-// frontend/src/components/NodePanel.tsx
-// Sidebar showing selected node details + trigger impact analysis + AI panel
-
 import React, { useState, useEffect } from 'react'
 import ImpactPanel from './ImpactPanel'
 import AIPanel from './AIPanel'
-import type { GraphNode, ImpactResult, AIExplanation } from '../types'
+import { explainNode } from '../api/client'
+import type { GraphNode, ImpactResult, AIExplanation, NodeSummaryResponse } from '../types'
 
 interface Props {
   node: GraphNode
@@ -61,7 +59,7 @@ const TYPE_BG: Record<string, string> = {
 
 export default function NodePanel({
   node,
-  repoId: _repoId,
+  repoId,
   impactResult,
   impactLoading,
   impactError,
@@ -74,10 +72,39 @@ export default function NodePanel({
   const [changeDesc, setChangeDesc] = useState('')
   const MAX_DESC = 500
 
-  // Clear description whenever the selected node changes
+  // Watsonx Node Purpose Summary state
+  const [summary, setSummary] = useState<NodeSummaryResponse | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [summaryExpanded, setSummaryExpanded] = useState(true)
+
+  // Clear description and summary whenever the selected node changes
   useEffect(() => {
     setChangeDesc('')
+    setSummary(null)
+    setSummaryLoading(false)
+    setSummaryError(null)
+    setSummaryExpanded(true)
   }, [node.id])
+
+  const handleExplainNode = async () => {
+    if (summaryLoading) return
+    setSummaryLoading(true)
+    setSummaryError(null)
+    try {
+      const res = await explainNode(repoId, node.id)
+      setSummary(res)
+      setSummaryExpanded(true)
+    } catch (err: unknown) {
+      const errorMsg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : null
+      setSummaryError(errorMsg || (err instanceof Error ? err.message : 'Failed to explain node'))
+    } finally {
+      setSummaryLoading(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -131,6 +158,143 @@ export default function NodePanel({
                 <span className="text-cyan-400 font-semibold">: {node.line_number}</span>
               )}
             </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Watsonx AI Purpose Summary Card ────────────────────────────── */}
+      <div className="rounded-xl border border-indigo-500/25 bg-gradient-to-b from-indigo-950/20 via-purple-950/10 to-[#121620] p-3.5 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex items-center justify-center w-6 h-6 rounded-md bg-indigo-500/20 text-indigo-400">
+              <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5">
+                <path d="M8 1.5l1.5 3.5 3.5 1.5-3.5 1.5L8 11.5l-1.5-3.5L3 6.5l3.5-1.5L8 1.5z" fill="currentColor"/>
+                <path d="M13 11l.75 1.75L15.5 13.5l-1.75.75L13 16l-.75-1.75L10.5 13.5l1.75-.75L13 11z" fill="currentColor" opacity="0.7"/>
+              </svg>
+            </span>
+            <div>
+              <h4 className="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
+                What does this {node.type} do?
+                <span className="text-[10px] font-normal px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  watsonx.ai
+                </span>
+              </h4>
+              <p className="text-[11px] text-gray-400">Grounded code purpose & contract summary</p>
+            </div>
+          </div>
+
+          {summary && (
+            <button
+              onClick={() => setSummaryExpanded(!summaryExpanded)}
+              className="text-gray-400 hover:text-gray-200 text-xs p-1"
+              title={summaryExpanded ? "Collapse summary" : "Expand summary"}
+            >
+              <svg viewBox="0 0 16 16" fill="none" className={`w-3.5 h-3.5 transition-transform ${summaryExpanded ? 'rotate-180' : ''}`}>
+                <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {!summary && !summaryLoading && (
+          <div className="mt-3">
+            <button
+              onClick={handleExplainNode}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/30 hover:border-indigo-400/50 text-indigo-200 text-xs font-medium transition-all shadow-sm group"
+            >
+              <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-indigo-300 group-hover:rotate-12 transition-transform">
+                <path d="M8 1.5l1.5 3.5 3.5 1.5-3.5 1.5L8 11.5l-1.5-3.5L3 6.5l3.5-1.5L8 1.5z" fill="currentColor"/>
+              </svg>
+              <span>Explain Code Purpose (Watsonx)</span>
+            </button>
+            {summaryError && (
+              <p className="mt-2 text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded p-1.5">{summaryError}</p>
+            )}
+          </div>
+        )}
+
+        {summaryLoading && (
+          <div className="mt-3 py-3 px-3 rounded-lg bg-indigo-950/30 border border-indigo-500/20 flex items-center gap-2.5">
+            <div className="w-3.5 h-3.5 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin flex-shrink-0" />
+            <span className="text-xs text-indigo-200 animate-pulse">
+              Watsonx Granite reading AST & dependency graph…
+            </span>
+          </div>
+        )}
+
+        {summary && summaryExpanded && (
+          <div className="mt-3 flex flex-col gap-2.5 text-xs">
+            {/* Purpose */}
+            <div className="bg-[#12151e]/80 rounded-lg p-2.5 border border-white/[0.05]">
+              <p className="text-[10px] font-semibold text-indigo-300 uppercase tracking-wider mb-1">
+                Core Purpose
+              </p>
+              <p className="text-gray-200 leading-relaxed text-xs">
+                {summary.purpose}
+              </p>
+            </div>
+
+            {/* Responsibilities */}
+            {summary.responsibilities && summary.responsibilities.length > 0 && (
+              <div className="bg-[#12151e]/80 rounded-lg p-2.5 border border-white/[0.05]">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                  Key Responsibilities
+                </p>
+                <ul className="space-y-1">
+                  {summary.responsibilities.map((r, i) => (
+                    <li key={i} className="flex items-start gap-1.5 text-gray-300">
+                      <span className="text-indigo-400 mt-0.5">•</span>
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Input / Output Contract */}
+            {summary.inputs_and_outputs && (
+              <div className="bg-[#12151e]/80 rounded-lg p-2.5 border border-white/[0.05]">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                  Contract & Data Flow
+                </p>
+                <p className="text-gray-300 font-mono text-[11px] break-words">
+                  {summary.inputs_and_outputs}
+                </p>
+              </div>
+            )}
+
+            {/* Architecture & Complexity Badges */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {summary.architectural_role && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] bg-purple-500/10 text-purple-300 border border-purple-500/20 font-medium">
+                  Role: {summary.architectural_role}
+                </span>
+              )}
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                  summary.complexity_rating === 'HIGH'
+                    ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                    : summary.complexity_rating === 'MEDIUM'
+                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                    : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                }`}
+              >
+                Complexity: {summary.complexity_rating}
+              </span>
+            </div>
+
+            {/* Grounding & Refresh */}
+            <div className="flex items-center justify-between pt-1 border-t border-white/[0.05] text-[10px] text-gray-400">
+              <span className="truncate max-w-[200px]" title={summary.model_used}>
+                Model: {summary.model_used || 'IBM Granite'}
+              </span>
+              <button
+                onClick={handleExplainNode}
+                className="text-indigo-400 hover:text-indigo-300 hover:underline"
+              >
+                Re-analyze
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -39,3 +39,32 @@ class AIExplanation:
             explanation="AI analysis is temporarily unavailable. Deterministic results are shown above.",
             analysis_type="unavailable",
         )
+
+
+@dataclass
+class NodeSummaryContext:
+    node_id: str
+    label: str
+    node_type: str
+    file_path: str
+    line_number: int
+    module_name: str
+    source_code: str = ""
+    docstring: str = ""
+    callers: list[str] = field(default_factory=list)
+    callees: list[str] = field(default_factory=list)
+    git_churn: int = 0
+
+
+@dataclass
+class NodeSummaryResult:
+    node_id: str
+    label: str
+    node_type: str
+    purpose: str
+    responsibilities: list[str] = field(default_factory=list)
+    inputs_and_outputs: str = ""
+    architectural_role: str = ""
+    complexity_rating: str = "LOW"  # LOW, MEDIUM, HIGH
+    model_used: str = ""
+    analysis_type: str = "watsonx"

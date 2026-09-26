@@ -227,3 +227,81 @@ class TestAIExplanationModel:
         assert exp.migration_plan == []
         assert exp.recommended_tests == []
         assert exp.model_used == ""
+
+
+# ── Node Summary pipeline tests ──────────────────────────────────────────
+
+class TestNodeSummaryPipeline:
+
+    @pytest.mark.asyncio
+    async def test_mock_adapter_summarize_node(self, mock_adapter):
+        from backend.models.ai import NodeSummaryContext, NodeSummaryResult
+        ctx = NodeSummaryContext(
+            node_id="auth.login",
+            label="login",
+            node_type="function",
+            file_path="auth.py",
+            line_number=10,
+            module_name="auth",
+            source_code="def login(user, pwd):\n    return True\n",
+            docstring="Authenticate user.",
+            callers=["api.login_route"],
+            callees=["db.find_user"],
+            git_churn=5,
+        )
+        result = await mock_adapter.summarize_node(ctx)
+        assert isinstance(result, NodeSummaryResult)
+        assert result.node_id == "auth.login"
+        assert result.label == "login"
+        assert "login" in result.purpose
+        assert len(result.responsibilities) >= 1
+        assert result.complexity_rating in ["LOW", "MEDIUM", "HIGH"]
+
+    def test_prompt_builder_node_summary(self):
+        from backend.models.ai import NodeSummaryContext
+        ctx = NodeSummaryContext(
+            node_id="db.query",
+            label="query",
+            node_type="function",
+            file_path="db.py",
+            line_number=5,
+            module_name="db",
+            source_code="def query(sql): pass",
+            docstring="Executes SQL query.",
+            callers=["service.fetch"],
+            callees=[],
+            git_churn=2,
+        )
+        prompt = PromptBuilder.build_node_summary_prompt(ctx)
+        assert "db.query" in prompt or "query" in prompt
+        assert "PURPOSE:" in prompt
+        assert "RESPONSIBILITIES:" in prompt
+        assert "ARCHITECTURAL_ROLE:" in prompt
+
+    def test_response_parser_node_summary(self):
+        raw = """
+PURPOSE:
+Validates user credentials against the database.
+
+RESPONSIBILITIES:
+- Verifies hashed passwords
+- Issues JWT tokens
+- Logs failed login attempts
+
+INPUTS_AND_OUTPUTS:
+Accepts username and password strings, returns token dict.
+
+ARCHITECTURAL_ROLE:
+Authentication gateway in API layer.
+
+COMPLEXITY_RATING:
+MEDIUM due to security sensitivity.
+"""
+        result = ResponseParser.parse_node_summary(raw, "auth.verify", "verify", "function", "ibm/granite")
+        assert result.node_id == "auth.verify"
+        assert "Validates user credentials" in result.purpose
+        assert len(result.responsibilities) == 3
+        assert "Authentication gateway" in result.architectural_role
+        assert result.complexity_rating == "MEDIUM"
+        assert result.model_used == "ibm/granite"
+

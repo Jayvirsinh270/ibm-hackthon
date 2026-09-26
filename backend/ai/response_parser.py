@@ -7,7 +7,7 @@ Falls back gracefully if sections are missing or malformed.
 """
 from __future__ import annotations
 import re
-from backend.models.ai import AIExplanation
+from backend.models.ai import AIExplanation, NodeSummaryResult
 
 
 class ResponseParser:
@@ -17,6 +17,14 @@ class ResponseParser:
         "risk_areas":         "RISK_AREAS:",
         "migration_plan":     "MIGRATION_PLAN:",
         "recommended_tests":  "RECOMMENDED_TESTS:",
+    }
+
+    NODE_SUMMARY_MARKERS = {
+        "purpose":             "PURPOSE:",
+        "responsibilities":    "RESPONSIBILITIES:",
+        "inputs_and_outputs":  "INPUTS_AND_OUTPUTS:",
+        "architectural_role":  "ARCHITECTURAL_ROLE:",
+        "complexity_rating":   "COMPLEXITY_RATING:",
     }
 
     @classmethod
@@ -81,3 +89,67 @@ class ResponseParser:
             if clean:
                 items.append(clean)
         return items
+
+    @classmethod
+    def parse_node_summary(
+        cls,
+        raw: str,
+        node_id: str,
+        label: str,
+        node_type: str,
+        model_id: str = "",
+    ) -> NodeSummaryResult:
+        """Parse raw model output for node code summary."""
+        if not raw or not raw.strip():
+            return NodeSummaryResult(
+                node_id=node_id,
+                label=label,
+                node_type=node_type,
+                purpose=f"Executes core {node_type} logic for {label}.",
+                responsibilities=[f"Implements {label} behavior"],
+                inputs_and_outputs="Standard Python arguments and return values",
+                architectural_role=f"{node_type.capitalize()} in application flow",
+                complexity_rating="LOW",
+                model_used=model_id or "watsonx",
+                analysis_type="fallback",
+            )
+
+        # Extract sections using NODE_SUMMARY_MARKERS
+        positions: list[tuple[str, int]] = []
+        upper = raw.upper()
+        for key, marker in cls.NODE_SUMMARY_MARKERS.items():
+            idx = upper.find(marker)
+            if idx != -1:
+                positions.append((key, idx + len(marker)))
+
+        positions.sort(key=lambda x: x[1])
+
+        sections: dict[str, str] = {}
+        for i, (key, start) in enumerate(positions):
+            end = positions[i + 1][1] - len(
+                cls.NODE_SUMMARY_MARKERS[positions[i + 1][0]]
+            ) if i + 1 < len(positions) else len(raw)
+            sections[key] = raw[start:end].strip()
+
+        purpose = sections.get("purpose") or raw[:300].strip()
+        responsibilities = cls._parse_list(sections.get("responsibilities", ""))
+        if not responsibilities:
+            responsibilities = [f"Implements core {label} logic"]
+
+        inputs_outputs = sections.get("inputs_and_outputs") or "Accepts inputs and produces return values"
+        arch_role = sections.get("architectural_role") or f"{node_type.capitalize()} in application flow"
+        comp_raw = sections.get("complexity_rating", "LOW").upper()
+        complexity = "HIGH" if "HIGH" in comp_raw else ("MEDIUM" if "MEDIUM" in comp_raw else "LOW")
+
+        return NodeSummaryResult(
+            node_id=node_id,
+            label=label,
+            node_type=node_type,
+            purpose=purpose,
+            responsibilities=responsibilities,
+            inputs_and_outputs=inputs_outputs,
+            architectural_role=arch_role,
+            complexity_rating=complexity,
+            model_used=model_id or "watsonx",
+            analysis_type="watsonx",
+        )

@@ -4,7 +4,7 @@ Constructs structured prompts from impact analysis data.
 NO source code is ever included — only structural metadata.
 """
 from __future__ import annotations
-from backend.models.ai import AIContext
+from backend.models.ai import AIContext, NodeSummaryContext
 
 # Cap lists to keep prompts within token budget
 _MAX_NODES_IN_PROMPT = 30
@@ -93,5 +93,49 @@ RECOMMENDED_TESTS:
 A list of tests that should be run or written before and after this change.
 
 Use exactly these headings: EXPLANATION:, RISK_AREAS:, MIGRATION_PLAN:, RECOMMENDED_TESTS:
+"""
+        return prompt.strip()
+
+    @staticmethod
+    def build_node_summary_prompt(ctx: NodeSummaryContext) -> str:
+        """Construct prompt for explaining what a function, class, or module does."""
+        code_snippet = ctx.source_code[:1200] if ctx.source_code else "(Source code unavailable)"
+        callers_str = ", ".join(ctx.callers[:8]) if ctx.callers else "None"
+        callees_str = ", ".join(ctx.callees[:8]) if ctx.callees else "None"
+        doc_str = ctx.docstring.strip() if ctx.docstring else "None provided"
+
+        prompt = f"""You are an expert Python architecture analyst. Explain what this {ctx.node_type} does in plain English.
+
+Component: {ctx.label} ({ctx.node_type})
+Module: {ctx.module_name}
+File: {ctx.file_path} (Line {ctx.line_number})
+Git Churn: {ctx.git_churn} historical commits
+Existing Docstring: {doc_str}
+Direct Callers: {callers_str}
+Calls: {callees_str}
+
+Source Code:
+```python
+{code_snippet}
+```
+
+Provide a concise, practical breakdown using EXACTLY these headings:
+
+PURPOSE:
+A clear 2-3 sentence overview explaining what this {ctx.node_type} does, why it exists, and its core business function.
+
+RESPONSIBILITIES:
+- Specific responsibility 1
+- Specific responsibility 2
+- Specific responsibility 3
+
+INPUTS_AND_OUTPUTS:
+State the expected inputs/arguments and return value contract.
+
+ARCHITECTURAL_ROLE:
+Describe how this component fits in the overall system (e.g. data access layer, authentication service, controller route, utility).
+
+COMPLEXITY_RATING:
+One of: LOW, MEDIUM, or HIGH followed by a brief reason.
 """
         return prompt.strip()
