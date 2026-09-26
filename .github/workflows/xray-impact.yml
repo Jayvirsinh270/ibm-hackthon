@@ -4,6 +4,10 @@ on:
   pull_request:
     branches: [ main, master, develop ]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   xray-impact:
     runs-on: ubuntu-latest
@@ -25,5 +29,26 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run X-Ray Blast Radius Analysis
+        id: xray
+        continue-on-error: true
         run: |
-          python -m backend.cli diff --base origin/${{ github.base_ref }} --fail-on=HIGH
+          python -m backend.cli diff \
+            --base origin/${{ github.base_ref }} \
+            --output-md xray-report.md \
+            --fail-on=HIGH
+
+      - name: Post PR Blast Radius Comment
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python -m backend.github_commenter \
+            --report xray-report.md \
+            --repo ${{ github.repository }} \
+            --pr ${{ github.event.pull_request.number }}
+
+      - name: Check Safety Gate Status
+        if: steps.xray.outcome == 'failure'
+        run: |
+          echo "::error::X-Ray Impact Safety Gate failed (Risk level exceeded threshold). Review the PR comment for details."
+          exit 1

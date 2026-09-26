@@ -34,6 +34,7 @@ interface Props {
   diffHighlights?: DiffHighlightMap | null
   isolateBlastRadius?: boolean
   tracedPathNodeId?: string | null
+  heatmapMode?: boolean
   hiddenTypes?: Set<string>
   onNodeClick: (node: GraphNode) => void
   onBackgroundClick?: () => void
@@ -159,6 +160,21 @@ const STYLESHEET: any[] = [
     } },
   // Hovered
   { selector: 'node.hovered',   style: { 'border-color': '#e5e7eb', 'border-width': 2, 'z-index': 60 } },
+  // Git Churn Heatmap
+  { selector: 'node.churn-zero',
+    style: { 'background-color': '#1e293b', 'border-color': '#334155', 'color': '#64748b' } },
+  { selector: 'node.churn-low',
+    style: { 'background-color': '#075985', 'border-color': '#0284c7', 'color': '#38bdf8' } },
+  { selector: 'node.churn-medium',
+    style: { 'background-color': '#78350f', 'border-color': '#f59e0b', 'color': '#fbbf24' } },
+  { selector: 'node.churn-high',
+    style: {
+      'background-color': '#991b1b',
+      'border-color': '#ef4444',
+      'border-width': 3,
+      'color': '#fecaca',
+      'z-index': 90,
+    } },
 
   // Base edge — 'straight' is the fastest rendering path in Cytoscape
   {
@@ -194,6 +210,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
   diffHighlights,
   isolateBlastRadius,
   tracedPathNodeId,
+  heatmapMode,
   hiddenTypes,
   onNodeClick,
   onBackgroundClick,
@@ -540,6 +557,29 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
       bestPath.addClass('path-traced')
     }
   }, [tracedPathNodeId, diffHighlights, selectedNodeId])
+
+  // ── Heatmap Mode ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const cy = cyRef.current
+    if (!cy) return
+
+    cy.nodes().removeClass('churn-zero churn-low churn-medium churn-high')
+
+    if (!heatmapMode) return
+
+    cy.nodes().forEach(n => {
+      const churn = Number(n.data('git_churn') ?? 0)
+      if (churn === 0) {
+        n.addClass('churn-zero')
+      } else if (churn <= 4) {
+        n.addClass('churn-low')
+      } else if (churn <= 14) {
+        n.addClass('churn-medium')
+      } else {
+        n.addClass('churn-high')
+      }
+    })
+  }, [heatmapMode])
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (

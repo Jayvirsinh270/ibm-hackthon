@@ -24,7 +24,30 @@ const TYPE_DOT: Record<string, string> = {
 }
 
 // ── Legend ────────────────────────────────────────────────────────────────
-function Legend({ isDiffMode }: { isDiffMode?: boolean }) {
+function Legend({ isDiffMode, isHeatmapMode }: { isDiffMode?: boolean; isHeatmapMode?: boolean }) {
+  if (isHeatmapMode) {
+    return (
+      <div className="flex items-center gap-3 text-xs text-gray-400 bg-orange-950/30 border border-orange-500/20 px-3 py-1 rounded-lg">
+        <span className="text-orange-400 font-semibold text-[11px] tracking-wide flex items-center gap-1">
+          <span>🔥</span> Churn:
+        </span>
+        <div className="flex items-center gap-3">
+          {[
+            { label: '0 (Stable)',     color: 'bg-slate-600' },
+            { label: '1–4 (Low)',      color: 'bg-sky-500' },
+            { label: '5–14 (Mod)',     color: 'bg-amber-500' },
+            { label: '15+ (Hotspot)',  color: 'bg-rose-500 ring-2 ring-rose-500/40' },
+          ].map(item => (
+            <span key={item.label} className="flex items-center gap-1.5">
+              <span className={`inline-block w-2 h-2 rounded-full ${item.color}`} />
+              <span className="text-gray-300 text-[11px]">{item.label}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   if (isDiffMode) {
     return (
       <div className="flex items-center gap-3 text-xs text-gray-400 bg-cyan-950/30 border border-cyan-500/20 px-3 py-1 rounded-lg">
@@ -109,6 +132,7 @@ export default function GraphPage({ repoId }: Props) {
   const [sidebarTab, setSidebarTab] = useState<'diff' | 'node'>('diff')
   const [isolateBlastRadius, setIsolateBlastRadius] = useState(false)
   const [tracedPathNodeId, setTracedPathNodeId] = useState<string | null>(null)
+  const [heatmapMode, setHeatmapMode] = useState(false)
   const { explanation: aiExplanation, loading: aiLoading, request: requestAI, clear: clearAI } = useAI()
   const graphViewerRef = useRef<GraphViewerHandle>(null)
 
@@ -424,6 +448,24 @@ export default function GraphPage({ repoId }: Props) {
               </button>
             )}
 
+            {/* Git Churn Heatmap Toggle */}
+            <button
+              onClick={() => setHeatmapMode(prev => !prev)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                heatmapMode
+                  ? 'bg-orange-500/20 border-orange-500/50 text-orange-300 shadow-md shadow-orange-500/10'
+                  : 'bg-white/[0.05] border-white/[0.1] text-gray-400 hover:text-white hover:bg-white/[0.08]'
+              }`}
+              title={heatmapMode ? "Switch to standard component view" : "Visualize code churn hotspots and high-frequency commit areas"}
+            >
+              <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-orange-400 flex-shrink-0">
+                <path d="M8 1c.5 2 2.5 3 2.5 5 0 2-1.5 3.5-2.5 4-1-.5-2.5-2-2.5-4 0-2 2-3 2.5-5z" fill="currentColor" fillOpacity="0.3"/>
+                <path d="M8 1c.5 2 2.5 3 2.5 5 0 2-1.5 3.5-2.5 4-1-.5-2.5-2-2.5-4 0-2 2-3 2.5-5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+                <path d="M8 7c.3 1 1.2 1.5 1.2 2.5 0 1-.7 1.7-1.2 2-.5-.3-1.2-1-1.2-2 0-1 .9-1.5 1.2-2.5z" fill="currentColor"/>
+              </svg>
+              <span>{heatmapMode ? 'Exit Heatmap' : 'Hotspots'}</span>
+            </button>
+
             <button
               onClick={() => {
                 setDiffModeOpen(prev => {
@@ -449,7 +491,7 @@ export default function GraphPage({ repoId }: Props) {
             </button>
 
             <div className="hidden md:block">
-              <Legend isDiffMode={diffModeOpen && Boolean(diffResult)} />
+              <Legend isDiffMode={diffModeOpen && Boolean(diffResult)} isHeatmapMode={heatmapMode} />
             </div>
           </div>
         </div>
@@ -500,6 +542,7 @@ export default function GraphPage({ repoId }: Props) {
             diffHighlights={diffHighlights}
             isolateBlastRadius={isolateBlastRadius}
             tracedPathNodeId={tracedPathNodeId}
+            heatmapMode={heatmapMode}
             hiddenTypes={hiddenTypes}
             onNodeClick={handleNodeClick}
             onBackgroundClick={handleBackgroundClick}
