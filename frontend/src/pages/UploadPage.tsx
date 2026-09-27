@@ -96,11 +96,12 @@ export default function UploadPage({ onRepoReady }: Props) {
     setLoadingMsg('Scanning dependencies & Git churn…')
     scanRepository(repoId).catch(() => {})
     const structure = await getStructure(repoId)
+    const actualCount = structure.files?.length || fileCount
 
     setPreview({
       repo_id: repoId,
       name,
-      file_count: fileCount,
+      file_count: actualCount,
       tree: structure.tree,
       source_url: sourceUrl,
     })
@@ -483,8 +484,10 @@ export default function UploadPage({ onRepoReady }: Props) {
                 </div>
                 <div className="min-w-0">
                   <p className="font-semibold text-white text-sm truncate">{preview.name}</p>
-                  <p className="text-xs text-gray-500">
-                    {preview.file_count} Python file{preview.file_count !== 1 ? 's' : ''} detected
+                  <p className="text-xs text-gray-400 flex items-center gap-1.5 mt-0.5">
+                    <span className="text-cyan-400 font-semibold">{preview.file_count} files indexed</span>
+                    <span className="text-gray-600">·</span>
+                    <span className="text-gray-400">Complete architectural hierarchy</span>
                   </p>
                 </div>
               </div>
@@ -507,7 +510,16 @@ export default function UploadPage({ onRepoReady }: Props) {
             </div>
 
             {/* File tree */}
-            <div className="px-5 py-4 max-h-64 overflow-y-auto xray-scrollbar">
+            <div className="px-5 py-2.5 bg-white/[0.02] border-b border-white/[0.04] flex items-center justify-between text-xs text-gray-400">
+              <span className="font-medium flex items-center gap-1.5">
+                <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-blue-400">
+                  <path d="M1.5 4.5A1 1 0 012.5 3.5H6l1.5 1.5H13.5a1 1 0 011 1V12a1 1 0 01-1 1H2.5a1 1 0 01-1-1V4.5z" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.2"/>
+                </svg>
+                Repository File Tree ({preview.file_count} files)
+              </span>
+              <span className="text-[11px] text-gray-500">Click folders to expand/collapse</span>
+            </div>
+            <div className="px-5 py-4 max-h-80 overflow-y-auto xray-scrollbar">
               <FileTree tree={preview.tree} />
             </div>
 

@@ -17,101 +17,15 @@ import type {
 } from '../types'
 
 import ytMusicGraphData from './ytMusicGraph.json'
+import ytTreeData from './ytTree.json'
 import { getStoredRepo, computeDynamicImpact } from './repoAnalyzer'
 
 export const FALLBACK_REPO_ID = 'demo-yt-music'
 
-// ── 1. YouTube Music Dataset ──────────────────────────────────────────────
+// ── 1. YouTube Music Dataset (Full 87 files & 233-node AST graph) ──────────
 
-export const REAL_YT_MUSIC_FILES = [
-  'main.py',
-  'web_app.py',
-  'recommendation_engine.py',
-  'downloader.py',
-  'library_service.py',
-  'lyrics_aligner.py',
-  'lyrics_provider.py',
-  'smart_playlists.py',
-  'db_store.py',
-  'discord_rpc.py',
-  'quotes_store.py',
-  'test_forced_alignment_system.py',
-  'requirements.txt',
-  'README.md',
-  'static/app.js',
-  'templates/index.html',
-  'mobile/lib/main.dart',
-]
-
-export const REAL_YT_MUSIC_TREE: Record<string, unknown> = {
-  'main.py': null,
-  'web_app.py': null,
-  'recommendation_engine.py': null,
-  'downloader.py': null,
-  'library_service.py': null,
-  'lyrics_aligner.py': null,
-  'lyrics_provider.py': null,
-  'smart_playlists.py': null,
-  'db_store.py': null,
-  'discord_rpc.py': null,
-  'quotes_store.py': null,
-  'test_forced_alignment_system.py': null,
-  'requirements.txt': null,
-  'README.md': null,
-  static: {
-    'app.js': null,
-    'audio_dsp.js': null,
-    'dj_engine.js': null,
-    'recommendations.js': null,
-    'smart_playlists.js': null,
-    'visualizers.js': null,
-    'waveform.js': null,
-    'youtube.js': null,
-    'styles.css': null,
-  },
-  templates: {
-    components: {
-      'fullscreen_player.html': null,
-      'header.html': null,
-      'player_bar.html': null,
-      'queue_drawer.html': null,
-      'sidebar.html': null,
-    },
-    modals: {
-      'add_to_playlist_modal.html': null,
-      'command_palette_modal.html': null,
-      'eq_modal.html': null,
-      'theme_studio_modal.html': null,
-    },
-    views: {
-      'dj_studio_view.html': null,
-      'explore_view.html': null,
-      'library_view.html': null,
-      'lyrics_view.html': null,
-    },
-    'index.html': null,
-  },
-  mobile: {
-    lib: {
-      screens: {
-        'home_screen.dart': null,
-        'player_screen.dart': null,
-        'search_screen.dart': null,
-      },
-      services: {
-        'audio_handler.dart': null,
-        'local_audio_service.dart': null,
-        'recommendation_engine.dart': null,
-      },
-      widgets: {
-        'mini_player.dart': null,
-        'track_tile.dart': null,
-      },
-      'main.dart': null,
-    },
-    'pubspec.yaml': null,
-  },
-}
+export const REAL_YT_MUSIC_FILES = ytTreeData.files
+export const REAL_YT_MUSIC_TREE = ytTreeData.tree as unknown as Record<string, unknown>
 
 // ── 2. Auth & RBAC Microservice Dataset ───────────────────────────────────
 
@@ -218,7 +132,7 @@ export function getFallbackDemoRepo(scenario: string = 'auth_service'): CloneRes
     return {
       repo_id: 'demo-yt-music',
       name: 'yt-music',
-      file_count: 12,
+      file_count: ytTreeData.files.length,
       status: 'ready',
       source_url: 'https://github.com/Jayvirsinh270/yt-music.git',
       branch: 'main',

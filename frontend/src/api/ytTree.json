@@ -1,0 +1,222 @@
+{
+  "files": [
+    "README.md",
+    "db_store.py",
+    "discord_rpc.py",
+    "downloader.py",
+    "library_service.py",
+    "lyrics_aligner.py",
+    "lyrics_provider.py",
+    "main.py",
+    "mobile/android/app/build.gradle",
+    "mobile/android/app/src/main/AndroidManifest.xml",
+    "mobile/android/app/src/main/res/drawable/launch_background.xml",
+    "mobile/android/app/src/main/res/values/styles.xml",
+    "mobile/android/build.gradle",
+    "mobile/android/gradle.properties",
+    "mobile/android/gradle/wrapper/gradle-wrapper.properties",
+    "mobile/android/settings.gradle",
+    "mobile/lib/main.dart",
+    "mobile/lib/models/track.dart",
+    "mobile/lib/providers/player_provider.dart",
+    "mobile/lib/screens/favorites_history_screen.dart",
+    "mobile/lib/screens/home_screen.dart",
+    "mobile/lib/screens/main_navigation_screen.dart",
+    "mobile/lib/screens/player_screen.dart",
+    "mobile/lib/screens/search_screen.dart",
+    "mobile/lib/services/audio_handler.dart",
+    "mobile/lib/services/local_audio_service.dart",
+    "mobile/lib/services/recommendation_engine.dart",
+    "mobile/lib/widgets/mini_player.dart",
+    "mobile/lib/widgets/track_tile.dart",
+    "mobile/pubspec.yaml",
+    "quotes_store.py",
+    "recommendation_engine.py",
+    "requirements.txt",
+    "smart_playlists.py",
+    "static/app.js",
+    "static/audio_dsp.js",
+    "static/command_palette.js",
+    "static/discord_rpc.js",
+    "static/dj_engine.js",
+    "static/dj_styles.css",
+    "static/dj_ui.js",
+    "static/fullscreen.js",
+    "static/keyboard.js",
+    "static/queue.css",
+    "static/recommendations.js",
+    "static/responsive.css",
+    "static/smart_playlists.js",
+    "static/styles.css",
+    "static/theme_studio.js",
+    "static/tour.css",
+    "static/tour.js",
+    "static/video.css",
+    "static/visualizers.js",
+    "static/waveform.js",
+    "static/youtube.js",
+    "templates/components/fullscreen_player.html",
+    "templates/components/header.html",
+    "templates/components/player_bar.html",
+    "templates/components/queue_drawer.html",
+    "templates/components/quote_splash.html",
+    "templates/components/sidebar.html",
+    "templates/index.html",
+    "templates/modals/add_to_playlist_modal.html",
+    "templates/modals/ambient_modal.html",
+    "templates/modals/command_palette_modal.html",
+    "templates/modals/download_modal.html",
+    "templates/modals/edit_track_modal.html",
+    "templates/modals/eq_modal.html",
+    "templates/modals/folders_modal.html",
+    "templates/modals/fs_theme_studio_modal.html",
+    "templates/modals/lyrics_search_modal.html",
+    "templates/modals/playlist_create_modal.html",
+    "templates/modals/rewind_modal.html",
+    "templates/modals/theme_studio_modal.html",
+    "templates/modals/video_modal.html",
+    "templates/modals/wallpaper_gallery_modal.html",
+    "templates/modals/yt_playlist_modal.html",
+    "templates/views/dj_studio_view.html",
+    "templates/views/downloads_view.html",
+    "templates/views/explore_view.html",
+    "templates/views/favorites_view.html",
+    "templates/views/library_view.html",
+    "templates/views/lyrics_view.html",
+    "templates/views/playlists_view.html",
+    "templates/views/videos_view.html",
+    "test_forced_alignment_system.py",
+    "web_app.py"
+  ],
+  "tree": {
+    "README.md": null,
+    "db_store.py": null,
+    "discord_rpc.py": null,
+    "downloader.py": null,
+    "library_service.py": null,
+    "lyrics_aligner.py": null,
+    "lyrics_provider.py": null,
+    "main.py": null,
+    "mobile": {
+      "android": {
+        "app": {
+          "build.gradle": null,
+          "src": {
+            "main": {
+              "AndroidManifest.xml": null,
+              "res": {
+                "drawable": {
+                  "launch_background.xml": null
+                },
+                "values": {
+                  "styles.xml": null
+                }
+              }
+            }
+          }
+        },
+        "build.gradle": null,
+        "gradle.properties": null,
+        "gradle": {
+          "wrapper": {
+            "gradle-wrapper.properties": null
+          }
+        },
+        "settings.gradle": null
+      },
+      "lib": {
+        "main.dart": null,
+        "models": {
+          "track.dart": null
+        },
+        "providers": {
+          "player_provider.dart": null
+        },
+        "screens": {
+          "favorites_history_screen.dart": null,
+          "home_screen.dart": null,
+          "main_navigation_screen.dart": null,
+          "player_screen.dart": null,
+          "search_screen.dart": null
+        },
+        "services": {
+          "audio_handler.dart": null,
+          "local_audio_service.dart": null,
+          "recommendation_engine.dart": null
+        },
+        "widgets": {
+          "mini_player.dart": null,
+          "track_tile.dart": null
+        }
+      },
+      "pubspec.yaml": null
+    },
+    "quotes_store.py": null,
+    "recommendation_engine.py": null,
+    "requirements.txt": null,
+    "smart_playlists.py": null,
+    "static": {
+      "app.js": null,
+      "audio_dsp.js": null,
+      "command_palette.js": null,
+      "discord_rpc.js": null,
+      "dj_engine.js": null,
+      "dj_styles.css": null,
+      "dj_ui.js": null,
+      "fullscreen.js": null,
+      "keyboard.js": null,
+      "queue.css": null,
+      "recommendations.js": null,
+      "responsive.css": null,
+      "smart_playlists.js": null,
+      "styles.css": null,
+      "theme_studio.js": null,
+      "tour.css": null,
+      "tour.js": null,
+      "video.css": null,
+      "visualizers.js": null,
+      "waveform.js": null,
+      "youtube.js": null
+    },
+    "templates": {
+      "components": {
+        "fullscreen_player.html": null,
+        "header.html": null,
+        "player_bar.html": null,
+        "queue_drawer.html": null,
+        "quote_splash.html": null,
+        "sidebar.html": null
+      },
+      "index.html": null,
+      "modals": {
+        "add_to_playlist_modal.html": null,
+        "ambient_modal.html": null,
+        "command_palette_modal.html": null,
+        "download_modal.html": null,
+        "edit_track_modal.html": null,
+        "eq_modal.html": null,
+        "folders_modal.html": null,
+        "fs_theme_studio_modal.html": null,
+        "lyrics_search_modal.html": null,
+        "playlist_create_modal.html": null,
+        "rewind_modal.html": null,
+        "theme_studio_modal.html": null,
+        "video_modal.html": null,
+        "wallpaper_gallery_modal.html": null,
+        "yt_playlist_modal.html": null
+      },
+      "views": {
+        "dj_studio_view.html": null,
+        "downloads_view.html": null,
+        "explore_view.html": null,
+        "favorites_view.html": null,
+        "library_view.html": null,
+        "lyrics_view.html": null,
+        "playlists_view.html": null,
+        "videos_view.html": null
+      }
+    },
+    "test_forced_alignment_system.py": null,
+    "web_app.py": null
+  }
+}
