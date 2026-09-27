@@ -15,7 +15,7 @@ from backend.models.repository import Repository
 from backend.graph.store import load_graph
 from backend.graph.queries import NodeNotFoundError
 from backend.analysis.impact_analyzer import analyze_impact
-from backend.models.ai import AIContext, NodeSummaryContext
+from backend.models.ai import AIContext, NodeSummaryContext, TestGenerationContext
 from backend.ai.factory import get_ai_service
 
 logger = logging.getLogger(__name__)
@@ -322,4 +322,118 @@ async def explain_node_endpoint(
         "file_path": file_path,
         "line_number": line_number,
     }
+
+
+class GenerateTestRequest(BaseModel):
+    node_id: str = Field(..., min_length=1, max_length=500, description="Target node ID to generate tests for")
+    framework: str = Field("pytest", max_length=50, description="Target testing framework")
+
+
+@router.post("/generate-test/{repo_id}")
+async def generate_test_endpoint(
+    repo_id: str,
+    body: GenerateTestRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Generate a complete, runnable pytest test file for a component to prevent regressions
+    during code changes, powered by IBM Bob 2.0 and watsonx.ai.
+    """
+    repo = db.get(Repository, repo_id)
+    if not repo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
+
+    G = load_graph(repo.upload_path)
+    if G is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Graph not found — run POST /api/scan/{repo_id} first",
+        )
+
+    if body.node_id not in G:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Node '{body.node_id}' not found in dependency graph",
+        )
+
+    node_data = G.nodes[body.node_id]
+    label = node_data.get("label") or body.node_id.split(".")[-1]
+    node_type = node_data.get("type", "unknown")
+    file_path = node_data.get("file_path", "")
+    line_number = int(node_data.get("line_number") or 1)
+    end_line_number = int(node_data.get("end_line_number") or (line_number + 40))
+    docstring = node_data.get("docstring") or ""
+    module_name = node_data.get("module_name") or node_data.get("module") or ""
+    if not module_name and file_path:
+        module_name = os.path.splitext(os.path.basename(file_path))[0]
+
+    callers = list(G.predecessors(body.node_id))
+    callees = list(G.successors(body.node_id))
+
+    source_code = ""
+    if file_path:
+        target_path = file_path
+        if not os.path.isabs(target_path):
+            target_path = os.path.join(repo.upload_path, target_path)
+        if not os.path.exists(target_path):
+            cand = os.path.join(repo.upload_path, os.path.basename(file_path))
+            if os.path.exists(cand):
+                target_path = cand
+
+        if os.path.exists(target_path) and os.path.isfile(target_path):
+            try:
+                with open(target_path, "r", encoding="utf-8", errors="replace") as f:
+                    full_content = f.read()
+
+                import ast
+                try:
+                    tree = ast.parse(full_content)
+                    for n in ast.walk(tree):
+                        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                            if getattr(n, "name", "") == label:
+                                source_code = ast.unparse(n)
+                                if not docstring:
+                                    docstring = ast.get_docstring(n) or ""
+                                break
+                except Exception:
+                    pass
+
+                if not source_code:
+                    lines = full_content.splitlines(keepends=True)
+                    start_line = max(1, line_number)
+                    raw_end = end_line_number if end_line_number > start_line else (start_line + 50)
+                    end_line = min(raw_end, start_line + 99, len(lines))
+                    source_code = "".join(lines[start_line - 1 : end_line])
+            except Exception as e:
+                logger.warning(f"Could not read source code for node {body.node_id}: {e}")
+
+    ctx = TestGenerationContext(
+        node_id=body.node_id,
+        label=label,
+        node_type=node_type,
+        file_path=file_path,
+        line_number=line_number,
+        module_name=module_name,
+        source_code=source_code,
+        docstring=docstring,
+        callers=callers[:10],
+        callees=callees[:10],
+        framework=body.framework,
+    )
+
+    ai = get_ai_service()
+    result = await ai.generate_tests(ctx)
+
+    return {
+        "node_id": result.node_id,
+        "target_label": result.target_label,
+        "target_file": result.target_file,
+        "test_filename": result.test_filename,
+        "test_code": result.test_code,
+        "framework": result.framework,
+        "scenarios_covered": result.scenarios_covered,
+        "model_used": result.model_used,
+        "analysis_type": result.analysis_type,
+    }
+
 

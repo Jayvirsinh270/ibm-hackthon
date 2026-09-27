@@ -4,7 +4,7 @@ Constructs structured prompts from impact analysis data.
 NO source code is ever included — only structural metadata.
 """
 from __future__ import annotations
-from backend.models.ai import AIContext, NodeSummaryContext
+from backend.models.ai import AIContext, NodeSummaryContext, TestGenerationContext
 
 # Cap lists to keep prompts within token budget
 _MAX_NODES_IN_PROMPT = 30
@@ -139,3 +139,48 @@ COMPLEXITY_RATING:
 One of: LOW, MEDIUM, or HIGH followed by a brief reason.
 """
         return prompt.strip()
+
+    @staticmethod
+    def build_test_generation_prompt(ctx: TestGenerationContext) -> str:
+        """Construct prompt for generating a complete, runnable pytest test file."""
+        code_snippet = ctx.source_code[:1500] if ctx.source_code else f"def {ctx.label}(): pass"
+        callers_str = ", ".join(ctx.callers[:6]) if ctx.callers else "None"
+        callees_str = ", ".join(ctx.callees[:6]) if ctx.callees else "None"
+        doc_str = ctx.docstring.strip() if ctx.docstring else "None provided"
+
+        prompt = f"""You are an expert Python test engineer and QA architect.
+Generate a complete, high-quality, production-ready {ctx.framework} test file for the following component to prevent regressions during code changes.
+
+Component: {ctx.label} ({ctx.node_type})
+Module: {ctx.module_name}
+File Path: {ctx.file_path}
+Existing Docstring: {doc_str}
+Direct Callers: {callers_str}
+Dependencies / Calls: {callees_str}
+
+Source Code:
+```python
+{code_snippet}
+```
+
+Requirements for the test suite:
+1. Write 3-5 comprehensive pytest test functions covering:
+   - Happy path with realistic input parameters and expected assertions
+   - Edge cases (boundary conditions, None values, empty collections, invalid inputs)
+   - Mocking of external calls/dependencies using unittest.mock.patch or MagicMock
+   - Error handling / expected exceptions (pytest.raises)
+2. Use clear docstrings explaining each test scenario.
+3. Provide the output in EXACTLY this format:
+
+SCENARIOS_COVERED:
+- <scenario 1>
+- <scenario 2>
+- <scenario 3>
+
+TEST_CODE:
+```python
+<complete runnable pytest code including all imports>
+```
+"""
+        return prompt.strip()
+

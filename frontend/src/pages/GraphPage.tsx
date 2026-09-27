@@ -6,11 +6,13 @@ import GraphViewer, { type GraphViewerHandle, type DiffHighlightMap, type Hierar
 import NodePanel from '../components/NodePanel'
 import DiffPanel from '../components/DiffPanel'
 import CodeViewerDrawer from '../components/CodeViewerDrawer'
+import TestGeneratorModal from '../components/TestGeneratorModal'
+import { generateTest } from '../api/client'
 import { useGraph } from '../hooks/useGraph'
 import { useImpact } from '../hooks/useImpact'
 import { useDiffImpact } from '../hooks/useDiffImpact'
 import { useAI } from '../hooks/useAI'
-import type { GraphNode } from '../types'
+import type { GraphNode, GeneratedTestSuite } from '../types'
 
 interface Props {
   repoId: string
@@ -123,6 +125,35 @@ export default function GraphPage({ repoId }: Props) {
     setViewingSymbolName(symbolName ?? null)
     setViewingChangedLines(changedLines ?? [])
     setCodeViewerOpen(true)
+  }
+
+  // ── 1-Click AI Test Suite Generator State ─────────────────────────────
+  const [testModalOpen, setTestModalOpen] = useState(false)
+  const [testSuiteData, setTestSuiteData] = useState<GeneratedTestSuite | null>(null)
+  const [testLoading, setTestLoading] = useState(false)
+  const [testError, setTestError] = useState<string | null>(null)
+  const [testTargetLabel, setTestTargetLabel] = useState<string>('')
+
+  const handleGenerateTests = async (nodeId?: string) => {
+    const targetId = nodeId || selectedNode?.id
+    if (!targetId) return
+
+    const targetNode = graph?.nodes.find(n => n.data.id === targetId)
+    const targetLabel = targetNode?.data.label || targetId
+    setTestTargetLabel(targetLabel)
+    setTestSuiteData(null)
+    setTestModalOpen(true)
+    setTestLoading(true)
+    setTestError(null)
+
+    try {
+      const res = await generateTest(repoId, targetId)
+      setTestSuiteData(res)
+    } catch (err: any) {
+      setTestError(err?.message || 'Failed to generate test suite with IBM Bob 2.0 / Watsonx Granite')
+    } finally {
+      setTestLoading(false)
+    }
   }
 
   // ── Filter state ──────────────────────────────────────────────────────
@@ -671,6 +702,7 @@ export default function GraphPage({ repoId }: Props) {
               onTracePath={setTracedPathNodeId}
               tracedNodeId={tracedPathNodeId}
               onViewSource={handleOpenSource}
+              onGenerateTests={handleGenerateTests}
             />
           ) : selectedNode ? (
             <div>
@@ -714,6 +746,7 @@ export default function GraphPage({ repoId }: Props) {
                   hierarchyNodeCount={hierarchyInfo?.nodeCount}
                   hierarchyScope={hierarchyScope}
                   onScopeChange={setHierarchyScope}
+                  onGenerateTests={handleGenerateTests}
                 />
               </div>
             </div>
@@ -730,6 +763,16 @@ export default function GraphPage({ repoId }: Props) {
         changedLines={viewingChangedLines}
         isOpen={codeViewerOpen}
         onClose={() => setCodeViewerOpen(false)}
+      />
+
+      {/* ── 1-Click AI Test Suite Generator Modal (IBM Bob 2.0 / Watsonx) ─ */}
+      <TestGeneratorModal
+        isOpen={testModalOpen}
+        onClose={() => setTestModalOpen(false)}
+        testSuite={testSuiteData}
+        loading={testLoading}
+        error={testError}
+        targetNodeLabel={testTargetLabel}
       />
     </div>
   )

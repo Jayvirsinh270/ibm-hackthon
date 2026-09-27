@@ -158,3 +158,16 @@ export interface NodeSummaryResponse {
   line_number: number
 }
 
+export interface GeneratedTestSuite {
+  node_id: string
+  target_label: string
+  target_file: string
+  test_filename: string
+  test_code: string
+  framework: string
+  scenarios_covered: string[]
+  model_used: string
+  analysis_type: string
+}
+
+

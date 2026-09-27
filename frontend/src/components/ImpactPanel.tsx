@@ -9,6 +9,7 @@ interface Props {
   result: ImpactResult | null
   loading?: boolean
   aiContent?: React.ReactNode
+  onGenerateTests?: (nodeId?: string) => void
 }
 
 const TYPE_ICON: Record<string, React.ReactElement> = {
@@ -134,7 +135,7 @@ function ExportButton({ result }: { result: ImpactResult }) {
   )
 }
 
-export default function ImpactPanel({ result, loading, aiContent }: Props) {
+export default function ImpactPanel({ result, loading, aiContent, onGenerateTests }: Props) {
   if (loading) {
     return (
       <div className="rounded-2xl border border-blue-500/25 bg-gradient-to-b from-blue-950/25 via-[#10141d] to-[#0c0e17] p-4 shadow-xl">
@@ -208,6 +209,21 @@ export default function ImpactPanel({ result, loading, aiContent }: Props) {
               style={{ width: `${Math.max(testCoverage, testCoverage > 0 ? 5 : 0)}%` }}
             />
           </div>
+
+          {testCoverage === 0 && onGenerateTests && (
+            <div className="mt-2.5 pt-2 border-t border-white/[0.06] flex items-center justify-between">
+              <span className="text-[10px] text-amber-300 flex items-center gap-1 font-medium">
+                <span>⚠️</span> 0% test coverage detected
+              </span>
+              <button
+                onClick={() => onGenerateTests(result.selected_node_id)}
+                className="text-[10px] font-semibold text-emerald-300 hover:text-white bg-emerald-500/20 hover:bg-emerald-500/35 px-2 py-0.5 rounded border border-emerald-500/40 transition-all active:scale-95"
+                title="Synthesize missing pytest regression suite for this component"
+              >
+                ✦ Generate Tests
+              </button>
+            </div>
+          )}
         </div>
       )}
 

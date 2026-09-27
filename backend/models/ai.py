@@ -68,3 +68,31 @@ class NodeSummaryResult:
     complexity_rating: str = "LOW"  # LOW, MEDIUM, HIGH
     model_used: str = ""
     analysis_type: str = "watsonx"
+
+
+@dataclass
+class TestGenerationContext:
+    node_id: str
+    label: str
+    node_type: str
+    file_path: str
+    line_number: int
+    module_name: str
+    source_code: str = ""
+    docstring: str = ""
+    callers: list[str] = field(default_factory=list)
+    callees: list[str] = field(default_factory=list)
+    framework: str = "pytest"
+
+
+@dataclass
+class TestGenerationResult:
+    node_id: str
+    target_label: str
+    target_file: str
+    test_filename: str
+    test_code: str
+    framework: str = "pytest"
+    scenarios_covered: list[str] = field(default_factory=list)
+    model_used: str = ""
+    analysis_type: str = "watsonx"

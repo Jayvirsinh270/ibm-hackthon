@@ -21,6 +21,7 @@ interface Props {
   hierarchyNodeCount?: number
   hierarchyScope?: 'lineage' | 'deep' | 'component'
   onScopeChange?: (scope: 'lineage' | 'deep' | 'component') => void
+  onGenerateTests?: (nodeId?: string) => void
 }
 
 const TYPE_ICON: Record<string, React.ReactElement> = {
@@ -87,6 +88,7 @@ export default function NodePanel({
   hierarchyNodeCount,
   hierarchyScope = 'lineage',
   onScopeChange,
+  onGenerateTests,
 }: Props) {
   const [changeDesc, setChangeDesc] = useState('')
   const [copied, setCopied] = useState(false)
@@ -199,24 +201,35 @@ export default function NodePanel({
           </div>
         </div>
 
-        {/* View Source Code button */}
-        {node.file_path && (
-          <div className="mt-3.5 pt-3 border-t border-white/[0.07]">
+        {/* Actions: View Source Code & 1-Click Test Generator */}
+        <div className="mt-3.5 pt-3 border-t border-white/[0.07] grid grid-cols-2 gap-2">
+          {node.file_path ? (
             <button
               onClick={() => onViewSource?.(node.file_path, node.line_number, node.label)}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/25 hover:border-cyan-400/50 text-cyan-200 text-xs font-mono font-medium transition-all group shadow-sm active:scale-[0.99]"
+              className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/25 hover:border-cyan-400/50 text-cyan-200 text-xs font-mono font-medium transition-all group shadow-sm active:scale-[0.99]"
               title="Inspect source code in-app with target line highlighted"
             >
               <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform">
                 <path d="M5 4L2 8l3 4M11 4l3 4-3 4M9 2.5l-2 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-              <span>View Source</span>
+              <span>Source</span>
               {node.line_number > 0 && (
-                <span className="text-cyan-400 font-semibold">: {node.line_number}</span>
+                <span className="text-cyan-400 font-semibold">:{node.line_number}</span>
               )}
             </button>
-          </div>
-        )}
+          ) : (
+            <div />
+          )}
+
+          <button
+            onClick={() => onGenerateTests?.(node.id)}
+            className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500/15 to-teal-500/15 hover:from-emerald-500/25 hover:to-teal-500/25 border border-emerald-500/30 hover:border-emerald-400/50 text-emerald-300 text-xs font-medium transition-all group shadow-sm active:scale-[0.99] ${!node.file_path ? 'col-span-2' : ''}`}
+            title="Generate runnable pytest suite for this component with IBM Bob 2.0 / Watsonx Granite"
+          >
+            <span className="text-emerald-400 group-hover:scale-125 transition-transform text-xs">✦</span>
+            <span>Generate Tests</span>
+          </button>
+        </div>
       </div>
 
       {/* ── 2. Dependency Hierarchy Tree Card ────────────────────────── */}
@@ -561,6 +574,7 @@ export default function NodePanel({
         <ImpactPanel
           result={impactResult}
           loading={impactLoading}
+          onGenerateTests={onGenerateTests}
           aiContent={
             impactResult ? (
               <AIPanel
@@ -568,6 +582,7 @@ export default function NodePanel({
                 loading={aiLoading}
                 onRequest={() => onAiRequest?.(changeDesc || impactResult.change_description)}
                 hasScenario={Boolean(changeDesc || impactResult.change_description)}
+                onGenerateTests={onGenerateTests}
               />
             ) : undefined
           }

@@ -9,6 +9,7 @@ interface Props {
   loading?: boolean
   onRequest?: () => void
   hasScenario?: boolean
+  onGenerateTests?: (testName?: string) => void
 }
 
 function SectionBlock({
@@ -66,7 +67,7 @@ function SectionBlock({
   )
 }
 
-export default function AIPanel({ explanation, loading, onRequest }: Props) {
+export default function AIPanel({ explanation, loading, onRequest, onGenerateTests }: Props) {
   const [copied, setCopied] = useState(false)
 
   const handleCopyPlan = () => {
@@ -256,13 +257,36 @@ export default function AIPanel({ explanation, loading, onRequest }: Props) {
                 {explanation.recommended_tests.map((test, i) => (
                   <li
                     key={i}
-                    className="flex items-center gap-2 text-xs text-emerald-300 bg-emerald-500/[0.07] border border-emerald-500/20 rounded-xl p-2.5 font-mono"
+                    className="flex items-center justify-between gap-2 text-xs text-emerald-300 bg-emerald-500/[0.07] border border-emerald-500/20 rounded-xl p-2.5 font-mono"
                   >
-                    <span className="text-emerald-400">✓</span>
-                    <span className="truncate">{test}</span>
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="text-emerald-400">✓</span>
+                      <span className="truncate">{test}</span>
+                    </div>
+                    {onGenerateTests && (
+                      <button
+                        onClick={() => onGenerateTests(test)}
+                        className="text-[10px] text-emerald-300 hover:text-white bg-emerald-500/20 hover:bg-emerald-500/30 px-2 py-0.5 rounded border border-emerald-500/30 font-sans flex-shrink-0 transition-all active:scale-95"
+                        title="Generate pytest test suite for this specific test case"
+                      >
+                        Generate
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
+
+              {/* 1-Click Auto-Generate Pytest Suite Button */}
+              {onGenerateTests && (
+                <button
+                  onClick={() => onGenerateTests(explanation.recommended_tests[0])}
+                  className="w-full mt-2.5 flex items-center justify-center gap-2 py-2 px-3.5 rounded-xl bg-gradient-to-r from-emerald-600/30 via-indigo-600/25 to-purple-600/25 hover:from-emerald-600/45 hover:to-indigo-600/40 border border-emerald-500/40 hover:border-emerald-400/60 text-emerald-200 text-xs font-semibold shadow-md shadow-emerald-950/20 transition-all active:scale-[0.99] group"
+                  title="Generate a complete runnable pytest test suite for the affected components"
+                >
+                  <span className="text-emerald-400 group-hover:scale-125 transition-transform text-sm">✦</span>
+                  <span>Auto-Generate Pytest Suite (Bob 2.0 / Watsonx)</span>
+                </button>
+              )}
             </div>
           )}
 

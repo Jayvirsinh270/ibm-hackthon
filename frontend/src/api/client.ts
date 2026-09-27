@@ -13,6 +13,7 @@ import type {
   DiffInspectResponse,
   CloneResponse,
   NodeSummaryResponse,
+  GeneratedTestSuite,
 } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
@@ -202,3 +203,19 @@ export async function loadDemoRepository(scenario: string = 'auth_service'): Pro
   const { data } = await api.post<CloneResponse>('/api/demo', { scenario })
   return data
 }
+
+// ── AI Test Suite Generator (IBM Bob 2.0 / Watsonx Granite) ───────────────
+
+/** Generate a complete pytest test file for an untested or critical component. */
+export async function generateTest(
+  repoId: string,
+  nodeId: string,
+  framework: string = 'pytest',
+): Promise<GeneratedTestSuite> {
+  const { data } = await api.post<GeneratedTestSuite>(`/api/generate-test/${repoId}`, {
+    node_id: nodeId,
+    framework,
+  })
+  return data
+}
+

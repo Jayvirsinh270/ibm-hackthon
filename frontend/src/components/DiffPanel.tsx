@@ -19,6 +19,7 @@ interface Props {
   onTracePath?: (nodeId: string | null) => void
   tracedNodeId?: string | null
   onViewSource?: (filePath: string, targetLine?: number, symbolName?: string) => void
+  onGenerateTests?: (nodeId?: string) => void
 }
 
 const SAMPLE_DEMO_DIFF = `diff --git a/auth/service.py b/auth/service.py
@@ -44,6 +45,7 @@ export default function DiffPanel({
   onTracePath,
   tracedNodeId,
   onViewSource,
+  onGenerateTests,
 }: Props) {
   const [diffText, setDiffText] = useState('')
   const [description, setDescription] = useState('')
@@ -413,8 +415,18 @@ ${result.ai?.explanation ? `\n#### 🤖 Watsonx AI Migration Assessment\n${resul
                   </button>
                 </div>
               ) : (
-                <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300">
-                  ⚠️ No test files directly cover the modified components.
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 space-y-2">
+                  <p>⚠️ No test files directly cover the modified components.</p>
+                  {onGenerateTests && (
+                    <button
+                      onClick={() => onGenerateTests(result.changed_symbols[0]?.node_id || result.direct_affected[0]?.id)}
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-medium transition-all group"
+                      title="Generate regression tests for modified symbols using IBM Bob 2.0 / Watsonx Granite"
+                    >
+                      <span className="text-emerald-400 group-hover:scale-125 transition-transform text-xs">✦</span>
+                      <span>Generate Targeted Test with IBM AI</span>
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -450,18 +462,35 @@ ${result.ai?.explanation ? `\n#### 🤖 Watsonx AI Migration Assessment\n${resul
 
             {/* Untested Dependencies Warning */}
             {result.untested_affected.length > 0 && (
-              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-1.5">
-                <span className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
-                  <span>⚠️</span> {result.untested_affected.length} Untested Downstream Dependencies
-                </span>
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                    <span>⚠️</span> {result.untested_affected.length} Untested Downstream
+                  </span>
+                  {onGenerateTests && (
+                    <button
+                      onClick={() => onGenerateTests(result.untested_affected[0]?.id as string)}
+                      className="px-2 py-0.5 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-[10px] font-medium flex items-center gap-1 transition-all"
+                      title="Generate test suite for untested affected components"
+                    >
+                      <span>✦ Generate Suite</span>
+                    </button>
+                  )}
+                </div>
                 <p className="text-[11px] text-amber-300/80 leading-relaxed">
                   These components depend on modified code but have no tests verifying their behavior.
                 </p>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {result.untested_affected.slice(0, 4).map(u => (
-                    <span key={u.id as string} className="text-[10px] font-mono bg-amber-500/20 text-amber-200 px-1.5 py-0.5 rounded">
-                      {(u as { label?: string }).label ?? u.id}
-                    </span>
+                    <button
+                      key={u.id as string}
+                      onClick={() => onGenerateTests?.(u.id as string)}
+                      className="text-[10px] font-mono bg-amber-500/20 hover:bg-emerald-500/20 text-amber-200 hover:text-emerald-200 border border-amber-500/30 hover:border-emerald-500/30 px-1.5 py-0.5 rounded transition-colors flex items-center gap-1 cursor-pointer"
+                      title={`Generate test for ${(u as { label?: string }).label ?? u.id}`}
+                    >
+                      <span>{(u as { label?: string }).label ?? u.id}</span>
+                      <span className="text-emerald-400 text-[9px]">✦</span>
+                    </button>
                   ))}
                   {result.untested_affected.length > 4 && (
                     <span className="text-[10px] text-amber-400">+{result.untested_affected.length - 4} more</span>

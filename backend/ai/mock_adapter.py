@@ -6,7 +6,14 @@ to provide specific, non-canned explanations without external API dependency.
 """
 from __future__ import annotations
 from backend.ai.interface import AIService
-from backend.models.ai import AIExplanation, AIContext, NodeSummaryContext, NodeSummaryResult
+from backend.models.ai import (
+    AIExplanation,
+    AIContext,
+    NodeSummaryContext,
+    NodeSummaryResult,
+    TestGenerationContext,
+    TestGenerationResult,
+)
 from backend.ai.code_intelligence import CodeIntelligence
 
 
@@ -24,4 +31,8 @@ class MockAdapter(AIService):
 
     async def summarize_node(self, context: NodeSummaryContext) -> NodeSummaryResult:
         return CodeIntelligence.synthesize_node_summary(context)
+
+    async def generate_tests(self, context: TestGenerationContext) -> TestGenerationResult:
+        return CodeIntelligence.synthesize_test_suite(context)
+
 

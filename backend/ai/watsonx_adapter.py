@@ -9,7 +9,14 @@ import logging
 from backend.ai.interface import AIService
 from backend.ai.prompt_builder import PromptBuilder
 from backend.ai.response_parser import ResponseParser
-from backend.models.ai import AIExplanation, AIContext, NodeSummaryContext, NodeSummaryResult
+from backend.models.ai import (
+    AIExplanation,
+    AIContext,
+    NodeSummaryContext,
+    NodeSummaryResult,
+    TestGenerationContext,
+    TestGenerationResult,
+)
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
@@ -137,3 +144,24 @@ class WatsonxAdapter(AIService):
             logger.error(f"watsonx.ai summarize_node failed: {exc}")
             from backend.ai.mock_adapter import MockAdapter
             return await MockAdapter().summarize_node(context)
+
+    async def generate_tests(self, context: TestGenerationContext) -> TestGenerationResult:
+        """Generate a complete pytest test file for a component using Watsonx or AST synthesis."""
+        if not self._available or self._model is None:
+            from backend.ai.mock_adapter import MockAdapter
+            return await MockAdapter().generate_tests(context)
+
+        try:
+            prompt = PromptBuilder.build_test_generation_prompt(context)
+            logger.info(f"Sending test generation prompt to watsonx.ai for node={context.node_id}")
+            response = self._model.generate_text(prompt=prompt)
+            return ResponseParser.parse_test_generation(
+                response,
+                context,
+                model_id=self._model_id,
+            )
+        except Exception as exc:
+            logger.error(f"watsonx.ai generate_tests failed: {exc}")
+            from backend.ai.mock_adapter import MockAdapter
+            return await MockAdapter().generate_tests(context)
+

@@ -7,7 +7,7 @@ Falls back gracefully if sections are missing or malformed.
 """
 from __future__ import annotations
 import re
-from backend.models.ai import AIExplanation, NodeSummaryResult
+from backend.models.ai import AIExplanation, NodeSummaryResult, TestGenerationResult, TestGenerationContext
 
 
 class ResponseParser:
@@ -170,3 +170,57 @@ class ResponseParser:
             model_used=model_id or "watsonx",
             analysis_type="watsonx",
         )
+
+    @classmethod
+    def parse_test_generation(
+        cls,
+        raw: str,
+        context: TestGenerationContext,
+        model_id: str = "ibm/granite-13b-chat-v2",
+    ) -> TestGenerationResult:
+        """Parse raw model text into a structured TestGenerationResult."""
+        scenarios: list[str] = []
+        test_code: str = ""
+
+        # Extract scenarios
+        scen_match = re.search(r"SCENARIOS_COVERED:\s*(.*?)(?=TEST_CODE:|$)", raw, re.DOTALL | re.IGNORECASE)
+        if scen_match:
+            scenarios = cls._parse_list(scen_match.group(1))
+
+        # Extract test code (look for ```python ... ``` or TEST_CODE:)
+        code_match = re.search(r"```(?:python)?\s*(.*?)\s*```", raw, re.DOTALL | re.IGNORECASE)
+        if code_match:
+            test_code = code_match.group(1).strip()
+        else:
+            # Check after TEST_CODE:
+            after_marker = re.search(r"TEST_CODE:\s*(.*)", raw, re.DOTALL | re.IGNORECASE)
+            if after_marker:
+                test_code = after_marker.group(1).strip()
+
+        # If model failed to provide code or output is empty, fallback to intelligent synthesis
+        if not test_code or "def test_" not in test_code:
+            from backend.ai.code_intelligence import CodeIntelligence
+            return CodeIntelligence.synthesize_test_suite(context)
+
+        if not scenarios:
+            # Auto-derive scenarios from test_ function names
+            test_funcs = re.findall(r"def\s+(test_[a-zA-Z0-9_]+)", test_code)
+            scenarios = [f"Verifies {f.replace('test_', '').replace('_', ' ')}" for f in test_funcs[:5]]
+            if not scenarios:
+                scenarios = [f"Unit test suite for {context.label}"]
+
+        safe_label = re.sub(r"[^a-zA-Z0-9_]", "_", context.label).lower()
+        test_filename = f"test_{safe_label}.py"
+
+        return TestGenerationResult(
+            node_id=context.node_id,
+            target_label=context.label,
+            target_file=context.file_path,
+            test_filename=test_filename,
+            test_code=test_code,
+            framework=context.framework,
+            scenarios_covered=scenarios,
+            model_used=model_id or "watsonx",
+            analysis_type="watsonx",
+        )
+
