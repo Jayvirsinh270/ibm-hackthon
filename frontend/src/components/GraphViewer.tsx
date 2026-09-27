@@ -270,6 +270,13 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
   const hierarchyInfoRef = useRef<HierarchyInfo | null>(null)
   hierarchyInfoRef.current = hierarchyInfo
 
+  // Map of node ID -> pristine initial position from first layout (exact Image 1 layout)
+  const defaultPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map())
+  // Map of node ID -> position immediately before hierarchy layout was applied
+  const preHierarchyPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map())
+  // Viewport immediately before hierarchy layout
+  const preHierarchyViewportRef = useRef<{ zoom: number; pan: { x: number; y: number } } | null>(null)
+
   const onNodeClickRef       = useRef(onNodeClick)
   const onBackgroundClickRef = useRef(onBackgroundClick)
   const onHierarchyChangeRef = useRef(onHierarchyChange)
@@ -284,6 +291,18 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
 
     const targetNode = cy.getElementById(nodeId)
     if (targetNode.length === 0) return null
+
+    // Snapshot pristine positions and viewport BEFORE hierarchy modifies anything
+    if (!hierarchyInfoRef.current?.active) {
+      preHierarchyPositionsRef.current.clear()
+      cy.nodes().forEach(n => {
+        preHierarchyPositionsRef.current.set(n.id(), { ...n.position() })
+      })
+      preHierarchyViewportRef.current = {
+        zoom: cy.zoom(),
+        pan: { ...cy.pan() },
+      }
+    }
 
     const maxDepth = scope === 'lineage' ? 1 : scope === 'deep' ? 2 : 6
 
@@ -504,29 +523,83 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
     const cy = cyRef.current
     if (!cy) return
 
-    cy.elements().removeClass('hierarchy-node hierarchy-edge hierarchy-root hierarchy-target hierarchy-dimmed')
+    // Stop any running animations
+    cy.nodes().stop(true, false)
+    cy.stop(true, false)
 
-    const opts = makeLayout(data.nodes.length)
-    const layout = cy.layout({
-      ...opts,
-      animate: data.nodes.length <= 150,
-      animationDuration: 450,
-    } as cytoscape.LayoutOptions)
+    // Remove ALL hierarchy-related classes so nodes and edges revert to their normal styles
+    cy.elements().removeClass(
+      'hierarchy-node hierarchy-edge hierarchy-root hierarchy-target hierarchy-caller hierarchy-callee hierarchy-dimmed'
+    )
 
-    layout.one('layoutstop', () => {
-      cy.animate({
-        fit: {
-          eles: cy.elements(':visible'),
-          padding: 60,
-        },
-        duration: 400,
-        easing: 'ease-in-out-cubic',
-      } as Parameters<typeof cy.animate>[0])
-    })
+    const hasSavedPositions = preHierarchyPositionsRef.current.size > 0 || defaultPositionsRef.current.size > 0
 
-    layout.run()
+    if (hasSavedPositions) {
+      const animateNodes = data.nodes.length <= 400
+      cy.nodes().forEach(node => {
+        const targetPos = preHierarchyPositionsRef.current.get(node.id()) || defaultPositionsRef.current.get(node.id())
+        if (targetPos) {
+          if (animateNodes) {
+            node.animate({
+              position: { x: targetPos.x, y: targetPos.y },
+              duration: 400,
+              easing: 'ease-in-out-cubic',
+            } as Parameters<typeof node.animate>[0])
+          } else {
+            node.position({ x: targetPos.x, y: targetPos.y })
+          }
+        }
+      })
 
+      // Restore camera viewport smoothly
+      const savedVp = preHierarchyViewportRef.current
+      if (savedVp && animateNodes) {
+        cy.animate({
+          zoom: savedVp.zoom,
+          pan: { x: savedVp.pan.x, y: savedVp.pan.y },
+          duration: 400,
+          easing: 'ease-in-out-cubic',
+        } as Parameters<typeof cy.animate>[0])
+      } else {
+        setTimeout(() => {
+          if (!cyRef.current) return
+          cyRef.current.animate({
+            fit: {
+              eles: cyRef.current.elements(':visible'),
+              padding: 60,
+            },
+            duration: 400,
+            easing: 'ease-in-out-cubic',
+          } as Parameters<typeof cy.animate>[0])
+        }, animateNodes ? 50 : 0)
+      }
+    } else {
+      // Fallback: re-run layout with randomize: true so it doesn't bunch up into a clump
+      const opts = makeLayout(data.nodes.length)
+      const layout = cy.layout({
+        ...opts,
+        randomize: true,
+        animate: false,
+      } as cytoscape.LayoutOptions)
+
+      layout.one('layoutstop', () => {
+        cy.animate({
+          fit: {
+            eles: cy.elements(':visible'),
+            padding: 60,
+          },
+          duration: 350,
+          easing: 'ease-in-out-cubic',
+        } as Parameters<typeof cy.animate>[0])
+      })
+
+      layout.run()
+    }
+
+    preHierarchyPositionsRef.current.clear()
+    preHierarchyViewportRef.current = null
     setHierarchyInfo(null)
+    hierarchyInfoRef.current = null
     onHierarchyChangeRef.current?.(null)
   }, [data.nodes.length])
 
@@ -656,6 +729,10 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
     if (layoutTimer.current) { clearTimeout(layoutTimer.current); layoutTimer.current = null }
 
     setHierarchyInfo(null)
+    hierarchyInfoRef.current = null
+    defaultPositionsRef.current.clear()
+    preHierarchyPositionsRef.current.clear()
+    preHierarchyViewportRef.current = null
     onHierarchyChangeRef.current?.(null)
 
     cy.elements().remove()
@@ -687,8 +764,23 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(function GraphViewer({
     layoutTimer.current = setTimeout(() => {
       if (!cyRef.current) return
       const opts = makeLayout(data.nodes.length)
-      cyRef.current.layout(opts).run()
-      cyRef.current.fit(undefined, 60)
+      const layout = cyRef.current.layout(opts)
+      layout.one('layoutstop', () => {
+        if (!cyRef.current) return
+        defaultPositionsRef.current.clear()
+        cyRef.current.nodes().forEach(node => {
+          defaultPositionsRef.current.set(node.id(), { ...node.position() })
+        })
+        cyRef.current.fit(undefined, 60)
+      })
+      layout.run()
+      // Synchronous fallback capture for animate: false layouts
+      if (defaultPositionsRef.current.size === 0) {
+        cyRef.current.nodes().forEach(node => {
+          defaultPositionsRef.current.set(node.id(), { ...node.position() })
+        })
+        cyRef.current.fit(undefined, 60)
+      }
       layoutTimer.current = null
     }, 50) // 50 ms is enough for one paint frame before layout starts
   }, [data])
