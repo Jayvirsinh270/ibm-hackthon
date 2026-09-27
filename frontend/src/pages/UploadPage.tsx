@@ -169,17 +169,20 @@ export default function UploadPage({ onRepoReady }: Props) {
 
       {/* ── Hero ──────────────────────────────────────────────────────── */}
       <div className="w-full max-w-2xl mb-8 text-center">
-        <div className="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-full px-3 py-1 mb-4">
-          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-          <span className="text-xs text-cyan-300 font-medium tracking-wide">
-            Intelligent Software Change Impact Analyzer
+        <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500/15 via-indigo-500/15 to-purple-500/15 border border-indigo-500/30 rounded-full px-3.5 py-1.5 mb-4 shadow-sm">
+          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+          <span className="text-xs text-indigo-200 font-semibold tracking-wide">
+            Developer Workflow Intelligence · Code Review, Testing & Release Pre-Flight
+          </span>
+          <span className="hidden sm:inline-block text-[10px] bg-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-400/40 font-mono font-medium">
+            IBM Bob 2.0
           </span>
         </div>
         <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3 tracking-tight">
           Analyze Software Blast Radius
         </h1>
         <p className="text-gray-400 text-sm leading-relaxed max-w-lg mx-auto">
-          Map Python AST dependencies, compute Git churn hotspots, and simulate change propagation with Watsonx AI.
+          Map AST dependencies, inspect PR diff blast radius, compute Git churn hotspots, and generate IBM watsonx.ai migration plans before merging code.
         </p>
       </div>
 

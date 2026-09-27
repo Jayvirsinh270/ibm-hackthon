@@ -92,6 +92,12 @@ function App() {
 
           {/* Right actions */}
           <div className="ml-auto flex items-center gap-3">
+            {/* IBM Bob 2.0 & watsonx.ai badge */}
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-indigo-500/15 to-purple-500/15 border border-indigo-500/30 text-indigo-200 text-xs font-semibold shadow-sm">
+              <span className="text-indigo-400 animate-pulse">✦</span>
+              <span>IBM Bob 2.0 & watsonx.ai</span>
+            </div>
+
             {repoId && page === 'graph' && (
               <button
                 className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] px-3 py-1.5 rounded-md transition-all duration-150"
