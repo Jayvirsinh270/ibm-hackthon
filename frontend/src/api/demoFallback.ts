@@ -1,6 +1,6 @@
 // frontend/src/api/demoFallback.ts
 // Intelligent offline & standalone demo fallback for Vercel deployments.
-// Uses the REAL 233-node, 410-edge AST architecture graph of yt-music with deep relationships.
+// Uses the REAL 233-node, 410-edge AST architecture graph of yt-music with deep relationships and exact file tree.
 
 import type {
   GraphData,
@@ -15,6 +15,96 @@ import type {
 import ytMusicGraphData from './ytMusicGraph.json'
 
 export const FALLBACK_REPO_ID = 'demo-yt-music'
+
+export const REAL_YT_MUSIC_FILES = [
+  'main.py',
+  'web_app.py',
+  'recommendation_engine.py',
+  'downloader.py',
+  'library_service.py',
+  'lyrics_aligner.py',
+  'lyrics_provider.py',
+  'smart_playlists.py',
+  'db_store.py',
+  'discord_rpc.py',
+  'quotes_store.py',
+  'test_forced_alignment_system.py',
+  'requirements.txt',
+  'README.md',
+  'static/app.js',
+  'templates/index.html',
+  'mobile/lib/main.dart',
+]
+
+export const REAL_YT_MUSIC_TREE: Record<string, unknown> = {
+  'main.py': null,
+  'web_app.py': null,
+  'recommendation_engine.py': null,
+  'downloader.py': null,
+  'library_service.py': null,
+  'lyrics_aligner.py': null,
+  'lyrics_provider.py': null,
+  'smart_playlists.py': null,
+  'db_store.py': null,
+  'discord_rpc.py': null,
+  'quotes_store.py': null,
+  'test_forced_alignment_system.py': null,
+  'requirements.txt': null,
+  'README.md': null,
+  static: {
+    'app.js': null,
+    'audio_dsp.js': null,
+    'dj_engine.js': null,
+    'recommendations.js': null,
+    'smart_playlists.js': null,
+    'visualizers.js': null,
+    'waveform.js': null,
+    'youtube.js': null,
+    'styles.css': null,
+  },
+  templates: {
+    components: {
+      'fullscreen_player.html': null,
+      'header.html': null,
+      'player_bar.html': null,
+      'queue_drawer.html': null,
+      'sidebar.html': null,
+    },
+    modals: {
+      'add_to_playlist_modal.html': null,
+      'command_palette_modal.html': null,
+      'eq_modal.html': null,
+      'theme_studio_modal.html': null,
+    },
+    views: {
+      'dj_studio_view.html': null,
+      'explore_view.html': null,
+      'library_view.html': null,
+      'lyrics_view.html': null,
+    },
+    'index.html': null,
+  },
+  mobile: {
+    lib: {
+      screens: {
+        'home_screen.dart': null,
+        'player_screen.dart': null,
+        'search_screen.dart': null,
+      },
+      services: {
+        'audio_handler.dart': null,
+        'local_audio_service.dart': null,
+        'recommendation_engine.dart': null,
+      },
+      widgets: {
+        'mini_player.dart': null,
+        'track_tile.dart': null,
+      },
+      'main.dart': null,
+    },
+    'pubspec.yaml': null,
+  },
+}
 
 export function getFallbackDemoRepo(): CloneResponse {
   return {
@@ -42,17 +132,17 @@ export function getFallbackImpact(nodeId: string): ImpactResult {
       selected_node_label: label,
       selected_node_type: 'function',
       direct_affected: [
-        { id: 'web_app.stream_audio_route', label: 'stream_audio_route', file_path: 'src/web_app.py', type: 'function' },
-        { id: 'library_service.fetch_user_library', label: 'fetch_user_library', file_path: 'src/library_service.py', type: 'function' },
-        { id: 'smart_playlists.generate_smart_mix', label: 'generate_smart_mix', file_path: 'src/smart_playlists.py', type: 'function' },
-        { id: 'downloader.cache_track_metadata', label: 'cache_track_metadata', file_path: 'src/downloader.py', type: 'function' },
+        { id: 'web_app.stream_audio_route', label: 'stream_audio_route', file_path: 'web_app.py', type: 'function' },
+        { id: 'library_service.fetch_user_library', label: 'fetch_user_library', file_path: 'library_service.py', type: 'function' },
+        { id: 'smart_playlists.generate_smart_mix', label: 'generate_smart_mix', file_path: 'smart_playlists.py', type: 'function' },
+        { id: 'downloader.cache_track_metadata', label: 'cache_track_metadata', file_path: 'downloader.py', type: 'function' },
       ],
       transitive_affected: [
-        { id: 'recommendation_engine.get_personalized_queue', label: 'get_personalized_queue', file_path: 'src/recommendation_engine.py', type: 'function' },
-        { id: 'lyrics_aligner.align_subtitles', label: 'align_subtitles', file_path: 'src/lyrics_aligner.py', type: 'function' },
+        { id: 'recommendation_engine.get_personalized_queue', label: 'get_personalized_queue', file_path: 'recommendation_engine.py', type: 'function' },
+        { id: 'lyrics_aligner.align_subtitles', label: 'align_subtitles', file_path: 'lyrics_aligner.py', type: 'function' },
       ],
       related_tests: [
-        { id: 'test_forced_alignment_system.test_db_isolation', label: 'test_db_isolation', file_path: 'src/test_forced_alignment_system.py', type: 'test' },
+        { id: 'test_forced_alignment_system.test_db_isolation', label: 'test_db_isolation', file_path: 'test_forced_alignment_system.py', type: 'test' },
       ],
       risk_level: 'HIGH',
       risk_score: 94,
@@ -74,11 +164,11 @@ export function getFallbackImpact(nodeId: string): ImpactResult {
       selected_node_label: label,
       selected_node_type: 'function',
       direct_affected: [
-        { id: 'web_app.init_flask_app', label: 'init_flask_app', file_path: 'src/web_app.py', type: 'function' },
-        { id: 'discord_rpc.update_presence_loop', label: 'update_presence_loop', file_path: 'src/discord_rpc.py', type: 'function' },
+        { id: 'web_app.init_flask_app', label: 'init_flask_app', file_path: 'web_app.py', type: 'function' },
+        { id: 'discord_rpc.update_presence_loop', label: 'update_presence_loop', file_path: 'discord_rpc.py', type: 'function' },
       ],
       transitive_affected: [
-        { id: 'web_app.stream_audio_route', label: 'stream_audio_route', file_path: 'src/web_app.py', type: 'function' },
+        { id: 'web_app.stream_audio_route', label: 'stream_audio_route', file_path: 'web_app.py', type: 'function' },
       ],
       related_tests: [],
       risk_level: 'HIGH',
@@ -94,17 +184,16 @@ export function getFallbackImpact(nodeId: string): ImpactResult {
     }
   }
 
-  // Dynamic impact fallback
   return {
     selected_node_id: nodeId,
     selected_node_label: label,
     selected_node_type: 'function',
     direct_affected: [
-      { id: 'web_app.stream_audio_route', label: 'stream_audio_route', file_path: 'src/web_app.py', type: 'function' },
-      { id: 'recommendation_engine.get_personalized_queue', label: 'get_personalized_queue', file_path: 'src/recommendation_engine.py', type: 'function' },
+      { id: 'web_app.stream_audio_route', label: 'stream_audio_route', file_path: 'web_app.py', type: 'function' },
+      { id: 'recommendation_engine.get_personalized_queue', label: 'get_personalized_queue', file_path: 'recommendation_engine.py', type: 'function' },
     ],
     transitive_affected: [
-      { id: 'smart_playlists.generate_smart_mix', label: 'generate_smart_mix', file_path: 'src/smart_playlists.py', type: 'function' },
+      { id: 'smart_playlists.generate_smart_mix', label: 'generate_smart_mix', file_path: 'smart_playlists.py', type: 'function' },
     ],
     related_tests: [],
     risk_level: 'MEDIUM',
@@ -124,29 +213,29 @@ export function getFallbackDiffImpact(diff: string): DiffImpactResult {
 
   if (isPortDiff) {
     return {
-      changed_files: ['src/main.py'],
+      changed_files: ['main.py'],
       changed_symbols: [
         {
           node_id: 'main.start_server',
           label: 'start_server',
           type: 'function',
-          file_path: 'src/main.py',
+          file_path: 'main.py',
           line_number: 10,
           change_type: 'modified',
         },
       ],
       direct_affected: [
-        { id: 'web_app.init_flask_app', label: 'init_flask_app', type: 'function', file_path: 'src/web_app.py' },
-        { id: 'discord_rpc.update_presence_loop', label: 'update_presence_loop', type: 'function', file_path: 'src/discord_rpc.py' },
+        { id: 'web_app.init_flask_app', label: 'init_flask_app', type: 'function', file_path: 'web_app.py' },
+        { id: 'discord_rpc.update_presence_loop', label: 'update_presence_loop', type: 'function', file_path: 'discord_rpc.py' },
       ],
       transitive_affected: [
-        { id: 'web_app.stream_audio_route', label: 'stream_audio_route', type: 'function', file_path: 'src/web_app.py' },
-        { id: 'recommendation_engine.get_personalized_queue', label: 'get_personalized_queue', type: 'function', file_path: 'src/recommendation_engine.py' },
+        { id: 'web_app.stream_audio_route', label: 'stream_audio_route', type: 'function', file_path: 'web_app.py' },
+        { id: 'recommendation_engine.get_personalized_queue', label: 'get_personalized_queue', type: 'function', file_path: 'recommendation_engine.py' },
       ],
       related_tests: [],
       untested_affected: [
-        { id: 'web_app.init_flask_app', label: 'init_flask_app', type: 'function', file_path: 'src/web_app.py' },
-        { id: 'discord_rpc.update_presence_loop', label: 'update_presence_loop', type: 'function', file_path: 'src/discord_rpc.py' },
+        { id: 'web_app.init_flask_app', label: 'init_flask_app', type: 'function', file_path: 'web_app.py' },
+        { id: 'discord_rpc.update_presence_loop', label: 'update_presence_loop', type: 'function', file_path: 'discord_rpc.py' },
       ],
       risk_level: 'HIGH',
       risk_score: 85,
@@ -185,28 +274,28 @@ export function getFallbackDiffImpact(diff: string): DiffImpactResult {
 
   // Default Recommendation Engine / Database Diff
   return {
-    changed_files: ['src/db_store.py'],
+    changed_files: ['db_store.py'],
     changed_symbols: [
       {
         node_id: 'db_store.get_db',
         label: 'get_db',
         type: 'function',
-        file_path: 'src/db_store.py',
+        file_path: 'db_store.py',
         line_number: 14,
         change_type: 'modified',
       },
     ],
     direct_affected: [
-      { id: 'web_app.stream_audio_route', label: 'stream_audio_route', type: 'function', file_path: 'src/web_app.py' },
-      { id: 'library_service.fetch_user_library', label: 'fetch_user_library', type: 'function', file_path: 'src/library_service.py' },
+      { id: 'web_app.stream_audio_route', label: 'stream_audio_route', type: 'function', file_path: 'web_app.py' },
+      { id: 'library_service.fetch_user_library', label: 'fetch_user_library', type: 'function', file_path: 'library_service.py' },
     ],
     transitive_affected: [
-      { id: 'smart_playlists.generate_smart_mix', label: 'generate_smart_mix', type: 'function', file_path: 'src/smart_playlists.py' },
-      { id: 'recommendation_engine.get_personalized_queue', label: 'get_personalized_queue', type: 'function', file_path: 'src/recommendation_engine.py' },
+      { id: 'smart_playlists.generate_smart_mix', label: 'generate_smart_mix', type: 'function', file_path: 'smart_playlists.py' },
+      { id: 'recommendation_engine.get_personalized_queue', label: 'get_personalized_queue', type: 'function', file_path: 'recommendation_engine.py' },
     ],
     related_tests: [],
     untested_affected: [
-      { id: 'web_app.stream_audio_route', label: 'stream_audio_route', type: 'function', file_path: 'src/web_app.py' },
+      { id: 'web_app.stream_audio_route', label: 'stream_audio_route', type: 'function', file_path: 'web_app.py' },
     ],
     risk_level: 'HIGH',
     risk_score: 92,
@@ -266,27 +355,26 @@ export function getFallbackNodeSummary(nodeId: string): NodeSummaryResponse {
     analysis_type: 'ai_assisted',
     callers: isDb ? ['web_app', 'library_service', 'smart_playlists', 'downloader'] : ['web_app', 'main'],
     callees: isDb ? ['sqlite3.connect', '_auto_migrate_legacy_json'] : ['db_store.get_db'],
-    file_path: isDb ? 'src/db_store.py' : 'src/main.py',
+    file_path: isDb ? 'db_store.py' : 'main.py',
     line_number: isDb ? 14 : 10,
   }
 }
 
 export function getFallbackSourceCode(filePath: string): SourceCodeResponse {
   if (filePath.includes('main.py')) {
-    const mainCode = `# src/main.py
-import os
+    const mainCode = `import os
 import sys
-from web_app import create_app
+import webbrowser
+from threading import Timer
+
+from web_app import app
 
 def start_server():
-    """
-    Initializes HTTP application server.
-    Changed from port 5000 to port 8080.
-    """
-    port = 8080
-    print(f"Starting server on port {port}...")
-    app = create_app()
-    app.run(host="0.0.0.0", port=port)
+    """Initializes and runs the yt-music local application server."""
+    host = os.environ.get("LINUS_HOST", "0.0.0.0" if "--lan" in sys.argv else "127.0.0.1")
+    port = int(os.environ.get("LINUS_PORT", 8080))
+    Timer(1.0, lambda: webbrowser.open(f"http://127.0.0.1:{port}")).start()
+    app.run(host=host, port=port, debug=False)
     return port
 
 if __name__ == "__main__":
@@ -296,14 +384,14 @@ if __name__ == "__main__":
       repo_id: 'yt-music',
       file_path: filePath,
       relative_path: filePath,
-      total_lines: 19,
+      total_lines: 16,
       content: mainCode,
       language: 'python',
     }
   }
 
-  const dbCode = `# src/db_store.py
-import sqlite3
+  if (filePath.includes('db_store.py')) {
+    const dbCode = `import sqlite3
 import os
 from contextlib import contextmanager
 
@@ -336,12 +424,60 @@ def init_db():
             )
         """)
 `
+    return {
+      repo_id: 'yt-music',
+      file_path: filePath,
+      relative_path: filePath,
+      total_lines: 34,
+      content: dbCode,
+      language: 'python',
+    }
+  }
+
+  if (filePath.includes('recommendation_engine.py')) {
+    const recCode = `"""
+recommendation_engine.py — Cognitive Music Intelligence Engine
+Evaluates playback history, collaborative transition matrices, and skips.
+"""
+import json
+import math
+import os
+import db_store as db
+import downloader as dl
+
+def get_personalized_queue(user_id: str, limit: int = 20):
+    """Generates personalized smart playlist using collaborative filtering."""
+    with db.get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT track_id, count FROM playback_history WHERE user_id = ?", (user_id,))
+        history = cursor.fetchall()
+        return [h["track_id"] for h in history[:limit]]
+`
+    return {
+      repo_id: 'yt-music',
+      file_path: filePath,
+      relative_path: filePath,
+      total_lines: 19,
+      content: recCode,
+      language: 'python',
+    }
+  }
+
+  const defaultCode = `# ${filePath}
+# Module component of yt-music architecture
+import db_store as db
+
+def execute_service_action():
+    """Service worker method integrated with central database context."""
+    with db.get_db() as conn:
+        return True
+`
   return {
     repo_id: 'yt-music',
     file_path: filePath,
     relative_path: filePath,
-    total_lines: 34,
-    content: dbCode,
+    total_lines: 10,
+    content: defaultCode,
     language: 'python',
   }
 }
@@ -366,24 +502,22 @@ class Test${label.charAt(0).toUpperCase() + label.slice(1)}Suite:
 
     def test_${label}_port_binding(self):
         """Verify server binds to updated port 8080."""
-        with patch("main.create_app") as mock_app:
-            mock_instance = MagicMock()
-            mock_app.return_value = mock_instance
+        with patch("web_app.app.run") as mock_run:
             port = start_server()
             assert port == 8080
-            mock_instance.run.assert_called_once_with(host="0.0.0.0", port=8080)
+            mock_run.assert_called_once_with(host="127.0.0.1", port=8080, debug=False)
 
     def test_${label}_environment_override(self):
         """Ensure port configuration gracefully falls back if custom port passed."""
-        with patch.dict("os.environ", {"PORT": "8080"}):
-            with patch("main.create_app"):
+        with patch.dict("os.environ", {"LINUS_PORT": "8080"}):
+            with patch("web_app.app.run"):
                 port = start_server()
                 assert port == 8080
 `
     return {
       node_id: nodeId,
       target_label: label,
-      target_file: 'src/main.py',
+      target_file: 'main.py',
       test_filename: `test_${label.toLowerCase()}_watsonx.py`,
       test_code: code,
       framework: 'pytest',
@@ -438,7 +572,7 @@ class Test${label.charAt(0).toUpperCase() + label.slice(1)}Suite:
   return {
     node_id: nodeId,
     target_label: label,
-    target_file: 'src/db_store.py',
+    target_file: 'db_store.py',
     test_filename: `test_${label.toLowerCase()}_watsonx.py`,
     test_code: code,
     framework: 'pytest',

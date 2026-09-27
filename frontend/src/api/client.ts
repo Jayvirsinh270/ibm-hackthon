@@ -23,6 +23,8 @@ import {
   getFallbackNodeSummary,
   getFallbackSourceCode,
   getFallbackGeneratedTest,
+  REAL_YT_MUSIC_FILES,
+  REAL_YT_MUSIC_TREE,
 } from './demoFallback'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
@@ -78,55 +80,14 @@ export async function getStructure(repoId: string): Promise<{
   files: string[]
   tree: Record<string, unknown>
 }> {
-  if (repoId.toLowerCase().includes('music') || repoId.toLowerCase().includes('yt')) {
-    return {
-      repo_id: repoId,
-      files: [
-        'main.py',
-        'player.py',
-        'audio_engine.py',
-        'downloader.py',
-        'routes.py',
-        'tests/test_player.py',
-      ],
-      tree: {
-        'main.py': null,
-        'player.py': null,
-        'audio_engine.py': null,
-        'downloader.py': null,
-        'routes.py': null,
-        tests: {
-          'test_player.py': null,
-        },
-      },
-    }
-  }
-
   try {
     const { data } = await api.get(`/api/structure/${repoId}`)
     return data
   } catch {
     return {
       repo_id: repoId,
-      files: [
-        'src/api/routes.py',
-        'src/auth/service.py',
-        'src/auth/jwt.py',
-        'src/models/user.py',
-        'src/database/session.py',
-        'src/payments/webhook.py',
-        'tests/test_auth.py',
-      ],
-      tree: {
-        src: {
-          api: { 'routes.py': null },
-          auth: { 'service.py': null, 'jwt.py': null },
-          models: { 'user.py': null },
-          database: { 'session.py': null },
-          payments: { 'webhook.py': null },
-        },
-        tests: { 'test_auth.py': null },
-      },
+      files: REAL_YT_MUSIC_FILES,
+      tree: REAL_YT_MUSIC_TREE,
     }
   }
 }
