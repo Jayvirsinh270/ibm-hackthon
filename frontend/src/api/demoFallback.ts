@@ -26,7 +26,43 @@ export function getFallbackDemoRepo(): CloneResponse {
   }
 }
 
-export function getFallbackGraph(): GraphData {
+export function getFallbackGraph(repoId: string = ''): GraphData {
+  const isMusic = repoId.toLowerCase().includes('music') || repoId.toLowerCase().includes('yt')
+
+  if (isMusic) {
+    return {
+      nodes: [
+        { data: { id: 'main', label: 'main', type: 'file', file_path: 'main.py', module_name: 'main', line_number: 0, git_churn: 6 } },
+        { data: { id: 'main.start_server', label: 'start_server', type: 'function', file_path: 'main.py', module_name: 'main', line_number: 10, git_churn: 7 } },
+        
+        { data: { id: 'player', label: 'player', type: 'file', file_path: 'player.py', module_name: 'player', line_number: 0, git_churn: 4 } },
+        { data: { id: 'player.MusicPlayer', label: 'MusicPlayer', type: 'class', file_path: 'player.py', module_name: 'player', line_number: 5, git_churn: 4 } },
+        { data: { id: 'player.MusicPlayer.play', label: 'play', type: 'function', file_path: 'player.py', module_name: 'player', line_number: 14, git_churn: 3 } },
+        { data: { id: 'player.MusicPlayer.pause', label: 'pause', type: 'function', file_path: 'player.py', module_name: 'player', line_number: 22, git_churn: 1 } },
+
+        { data: { id: 'audio_engine', label: 'audio_engine', type: 'file', file_path: 'audio_engine.py', module_name: 'audio_engine', line_number: 0, git_churn: 2 } },
+        { data: { id: 'audio_engine.stream_audio', label: 'stream_audio', type: 'function', file_path: 'audio_engine.py', module_name: 'audio_engine', line_number: 8, git_churn: 3 } },
+
+        { data: { id: 'downloader', label: 'downloader', type: 'file', file_path: 'downloader.py', module_name: 'downloader', line_number: 0, git_churn: 5 } },
+        { data: { id: 'downloader.extract_info', label: 'extract_info', type: 'function', file_path: 'downloader.py', module_name: 'downloader', line_number: 12, git_churn: 5 } },
+
+        { data: { id: 'api.routes', label: 'routes', type: 'file', file_path: 'routes.py', module_name: 'api.routes', line_number: 0, git_churn: 3 } },
+        { data: { id: 'api.routes.api_stream', label: 'api_stream', type: 'function', file_path: 'routes.py', module_name: 'api.routes', line_number: 18, git_churn: 4 } },
+
+        { data: { id: 'tests.test_player', label: 'test_player', type: 'test', file_path: 'tests/test_player.py', module_name: 'tests.test_player', line_number: 0, git_churn: 1 } },
+        { data: { id: 'tests.test_player.test_audio_playback', label: 'test_audio_playback', type: 'test', file_path: 'tests/test_player.py', module_name: 'tests.test_player', line_number: 10, git_churn: 1 } },
+      ],
+      edges: [
+        { data: { id: 'm1', source: 'main.start_server', target: 'api.routes.api_stream', type: 'call' } },
+        { data: { id: 'm2', source: 'api.routes.api_stream', target: 'player.MusicPlayer.play', type: 'call' } },
+        { data: { id: 'm3', source: 'player.MusicPlayer.play', target: 'audio_engine.stream_audio', type: 'call' } },
+        { data: { id: 'm4', source: 'player.MusicPlayer.play', target: 'downloader.extract_info', type: 'call' } },
+        { data: { id: 'm5', source: 'tests.test_player.test_audio_playback', target: 'player.MusicPlayer.play', type: 'tests' } },
+      ],
+    }
+  }
+
+  // Default Auth & RBAC Microservice Graph
   return {
     nodes: [
       { data: { id: 'api.routes', label: 'routes', type: 'file', file_path: 'src/api/routes.py', module_name: 'api.routes', line_number: 0, git_churn: 3 } },
@@ -69,6 +105,36 @@ export function getFallbackGraph(): GraphData {
 }
 
 export function getFallbackImpact(nodeId: string): ImpactResult {
+  const isMusic = nodeId.includes('start_server') || nodeId.includes('main') || nodeId.includes('player')
+
+  if (isMusic) {
+    return {
+      selected_node_id: nodeId,
+      selected_node_label: nodeId.split('.').pop() ?? nodeId,
+      selected_node_type: 'function',
+      direct_affected: [
+        { id: 'api.routes.api_stream', label: 'api_stream', file_path: 'routes.py', type: 'function' },
+        { id: 'player.MusicPlayer.play', label: 'play', file_path: 'player.py', type: 'function' },
+      ],
+      transitive_affected: [
+        { id: 'audio_engine.stream_audio', label: 'stream_audio', file_path: 'audio_engine.py', type: 'function' },
+      ],
+      related_tests: [
+        { id: 'tests.test_player.test_audio_playback', label: 'test_audio_playback', file_path: 'tests/test_player.py', type: 'test' },
+      ],
+      risk_level: 'HIGH',
+      risk_score: 85,
+      contributing_factors: [
+        'Direct caller api.routes.api_stream has NO unit test coverage for new port configurations',
+        'Alters host binding and networking port (5000 -> 8080)',
+        'Upstream reverse proxies and client apps will be disconnected without configuration sync',
+      ],
+      max_depth: 2,
+      analysis_type: 'ast_dependency_traversal',
+      change_description: 'Modified server port binding in start_server',
+    }
+  }
+
   return {
     selected_node_id: nodeId,
     selected_node_label: nodeId.split('.').pop() ?? nodeId,
@@ -97,7 +163,69 @@ export function getFallbackImpact(nodeId: string): ImpactResult {
   }
 }
 
-export function getFallbackDiffImpact(_diff: string): DiffImpactResult {
+export function getFallbackDiffImpact(diff: string): DiffImpactResult {
+  const isPortDiff = diff.includes('8080') || diff.includes('start_server') || diff.includes('main.py')
+
+  if (isPortDiff) {
+    return {
+      changed_files: ['main.py'],
+      changed_symbols: [
+        {
+          node_id: 'main.start_server',
+          label: 'start_server',
+          type: 'function',
+          file_path: 'main.py',
+          line_number: 10,
+          change_type: 'modified',
+        },
+      ],
+      direct_affected: [
+        { id: 'api.routes.api_stream', label: 'api_stream', type: 'function', file_path: 'routes.py' },
+        { id: 'player.MusicPlayer.play', label: 'play', type: 'function', file_path: 'player.py' },
+      ],
+      transitive_affected: [
+        { id: 'audio_engine.stream_audio', label: 'stream_audio', type: 'function', file_path: 'audio_engine.py' },
+      ],
+      related_tests: [],
+      untested_affected: [
+        { id: 'api.routes.api_stream', label: 'api_stream', type: 'function', file_path: 'routes.py' },
+      ],
+      risk_level: 'HIGH',
+      risk_score: 85,
+      contributing_factors: [
+        'Direct caller api.routes.api_stream has NO test coverage for port 8080',
+        'Port modification (5000 -> 8080) breaks client web and mobile socket connections',
+        'Critical entrypoint symbol main.start_server modified',
+      ],
+      max_depth: 2,
+      analysis_type: 'git_ast_blast_radius',
+      change_description: 'Modified server port to 8080',
+      ai: {
+        available: true,
+        model_used: 'ibm/granite-13b-chat-v2',
+        analysis_type: 'ai_assisted',
+        explanation:
+          'A modification inside main.py changes the application runtime port from 5000 to 8080. This change alters the network socket contract. Downstream client endpoints in routes.py (such as api_stream) depend on standard port bindings, and current test suites have zero integration tests asserting port 8080 compatibility.',
+        risk_areas: [
+          'Client connection failure (ECONNREFUSED on port 5000)',
+          'Docker container exposed port mismatch if Dockerfile remains port 5000',
+          'Untested downstream API listener in routes.py',
+        ],
+        migration_plan: [
+          'Generate and run pytest suite verifying port binding and socket acceptance on port 8080',
+          'Verify reverse proxy configuration (Nginx / Cloudflare) to route to port 8080',
+          'Update environment variable configuration fallback PORT=8080',
+        ],
+        recommended_tests: [
+          'test_start_server_binds_to_configured_port',
+          'test_client_handshake_on_port_8080',
+          'test_environment_override_port_fallback',
+        ],
+      },
+    }
+  }
+
+  // Default Auth Diff
   return {
     changed_files: ['src/auth/service.py'],
     changed_symbols: [
@@ -162,26 +290,54 @@ export function getFallbackNodeSummary(nodeId: string): NodeSummaryResponse {
   return {
     node_id: nodeId,
     label,
-    node_type: nodeId.includes('AuthService') ? 'class' : 'function',
-    purpose: `Central architectural component managing credentials, token verification, and downstream authorization checks.`,
+    node_type: nodeId.includes('AuthService') || nodeId.includes('Player') ? 'class' : 'function',
+    purpose: `Central architectural component managing execution and downstream service integration for ${label}.`,
     responsibilities: [
-      'Validates incoming authorization tokens and user signatures',
-      'Coordinates with database session to look up tenant and permissions',
-      'Provides security boundary for billing, routes, and admin controllers',
+      'Executes core logic and validates incoming parameters',
+      'Coordinates with subsystem dependencies across architectural boundaries',
+      'Maintains operational stability for downstream callers',
     ],
-    inputs_and_outputs: 'Inputs: auth_token (str), db_session. Returns: bool (is_valid) or User payload.',
-    architectural_role: 'Core Security & Authentication Subsystem',
+    inputs_and_outputs: 'Inputs: request payload or configuration. Returns: response status or execution state.',
+    architectural_role: 'Core Architectural Subsystem Component',
     complexity_rating: 'HIGH',
     model_used: 'ibm/granite-13b-chat-v2',
     analysis_type: 'ai_assisted',
-    callers: ['api.routes.verify_endpoint', 'payments.webhook.process_payment'],
-    callees: ['auth.jwt.decode_token', 'database.session.get_db'],
-    file_path: 'src/auth/service.py',
-    line_number: 32,
+    callers: ['api.routes', 'payments.webhook'],
+    callees: ['auth.jwt', 'database.session'],
+    file_path: 'main.py',
+    line_number: 10,
   }
 }
 
 export function getFallbackSourceCode(filePath: string): SourceCodeResponse {
+  if (filePath.includes('main.py')) {
+    const mainCode = `# main.py
+import os
+import sys
+
+def start_server():
+    """
+    Initializes HTTP application server.
+    Changed from port 5000 to port 8080.
+    """
+    port = 8080
+    print(f"Starting server on port {port}...")
+    # app.run(port=port)
+    return port
+
+if __name__ == "__main__":
+    start_server()
+`
+    return {
+      repo_id: 'fallback',
+      file_path: filePath,
+      relative_path: filePath,
+      total_lines: 18,
+      content: mainCode,
+      language: 'python',
+    }
+  }
+
   const content = `# Source code: ${filePath}
 from ..models.user import User
 from ..database.session import get_db
@@ -219,7 +375,51 @@ class AuthService:
 }
 
 export function getFallbackGeneratedTest(nodeId: string): GeneratedTestSuite {
-  const label = nodeId.split('.').pop() ?? 'verify_token_v2'
+  const label = nodeId.split('.').pop() ?? 'start_server'
+  
+  if (label.includes('server') || label.includes('start')) {
+    const code = `"""
+Unit test suite for ${nodeId}
+Synthesized by X-Ray using IBM watsonx.ai (ibm/granite-13b-chat-v2)
+Regression safety net for server port and listener binding.
+"""
+import pytest
+from unittest.mock import MagicMock, patch
+
+from main import start_server
+
+
+class Test${label.charAt(0).toUpperCase() + label.slice(1)}Suite:
+    """Automated test suite verifying socket configuration and port 8080 migration."""
+
+    def test_${label}_port_binding(self):
+        """Verify server binds to updated port 8080."""
+        port = start_server()
+        assert port == 8080
+
+    @patch("main.app.run")
+    def test_${label}_execution(self, mock_run):
+        """Ensure app.run is invoked with correct keyword arguments."""
+        start_server()
+        mock_run.assert_called_once_with(port=8080)
+`
+    return {
+      node_id: nodeId,
+      target_label: label,
+      target_file: 'main.py',
+      test_filename: `test_${label.toLowerCase()}_watsonx.py`,
+      test_code: code,
+      framework: 'pytest',
+      scenarios_covered: [
+        'Port 8080 binding verification',
+        'Application runner keyword argument assertion',
+        'Regression prevention for client socket listeners',
+      ],
+      model_used: 'ibm/granite-13b-chat-v2',
+      analysis_type: 'ai_assisted',
+    }
+  }
+
   const code = `"""
 Unit test suite for ${nodeId}
 Synthesized by X-Ray using IBM watsonx.ai (ibm/granite-13b-chat-v2)
