@@ -1,0 +1,10 @@
+# Ignore Python backend and non-frontend files during Vercel builds
+backend/
+*.py
+requirements.txt
+data/
+website_screenshot/
+bob_sessions/
+*.pptx
+*.mp4
+*.webm
