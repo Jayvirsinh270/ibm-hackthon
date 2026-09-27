@@ -6,6 +6,7 @@ import UploadZone from '../components/UploadZone'
 import FileTree from '../components/FileTree'
 import {
   uploadRepository,
+  uploadFolder,
   getStructure,
   deleteRepository,
   scanRepository,
@@ -45,6 +46,18 @@ const DEMO_SCENARIOS = [
       <svg viewBox="0 0 16 16" fill="none" className="w-5 h-5 text-cyan-400">
         <path d="M8 1L2 3.5V7c0 4 2.5 7.5 6 8.5 3.5-1 6-4.5 6-8.5V3.5L8 1z" stroke="currentColor" strokeWidth="1.2" fill="currentColor" fillOpacity="0.1"/>
         <path d="M8 5v3.5M8 10.5v.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'yt_music',
+    title: 'YouTube Music Desktop Core',
+    tag: 'Full Scale',
+    desc: 'Audio streaming pipeline, collaborative recommendation engine, SQLite store, and lyrics sync.',
+    stats: '12 Python modules · 233 AST nodes · 410 edges',
+    icon: (
+      <svg viewBox="0 0 16 16" fill="none" className="w-5 h-5 text-violet-400">
+        <path d="M6 3v7a2 2 0 11-1.5-1.937V4.5l6-1.5v5a2 2 0 11-1.5-1.937V2L6 3z" fill="currentColor"/>
       </svg>
     ),
   },
@@ -104,6 +117,21 @@ export default function UploadPage({ onRepoReady }: Props) {
       await handleFinishImport(uploaded.repo_id, uploaded.name, uploaded.file_count)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Upload failed'
+      setError(msg)
+      setStage('error')
+    }
+  }
+
+  const handleFolder = async (folderName: string, files: File[]) => {
+    setStage('loading')
+    setLoadingMsg(`Analyzing folder ${folderName} & indexing Python files…`)
+    setError(null)
+
+    try {
+      const uploaded = await uploadFolder(folderName, files)
+      await handleFinishImport(uploaded.repo_id, uploaded.name, uploaded.file_count)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Folder upload failed'
       setError(msg)
       setStage('error')
     }
@@ -407,9 +435,9 @@ export default function UploadPage({ onRepoReady }: Props) {
           </div>
         )}
 
-        {/* Tab 3: Upload ZIP */}
+        {/* Tab 3: Upload ZIP / Folder */}
         {stage !== 'preview' && activeTab === 'upload' && (
-          <UploadZone onFile={handleFile} disabled={stage === 'loading'} />
+          <UploadZone onFile={handleFile} onFolder={handleFolder} disabled={stage === 'loading'} />
         )}
 
         {/* Loading state indicator */}

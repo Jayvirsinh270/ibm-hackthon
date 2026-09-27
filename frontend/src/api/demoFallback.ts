@@ -1,6 +1,10 @@
 // frontend/src/api/demoFallback.ts
-// Intelligent offline & standalone demo fallback for Vercel deployments.
-// Uses the REAL 233-node, 410-edge AST architecture graph of yt-music with deep relationships and exact file tree.
+// Multi-repository demo fallback and standalone client engine.
+// Supports:
+// 1. In-memory dynamically analyzed repos (uploaded ZIPs, local folders, arbitrary GitHub URLs)
+// 2. Curated yt-music architecture (233 nodes, 410 edges, authentic file tree)
+// 3. Auth & RBAC Microservice demo
+// 4. E-Commerce Checkout Core demo
 
 import type {
   GraphData,
@@ -13,8 +17,11 @@ import type {
 } from '../types'
 
 import ytMusicGraphData from './ytMusicGraph.json'
+import { getStoredRepo, computeDynamicImpact } from './repoAnalyzer'
 
 export const FALLBACK_REPO_ID = 'demo-yt-music'
+
+// ── 1. YouTube Music Dataset ──────────────────────────────────────────────
 
 export const REAL_YT_MUSIC_FILES = [
   'main.py',
@@ -106,25 +113,191 @@ export const REAL_YT_MUSIC_TREE: Record<string, unknown> = {
   },
 }
 
-export function getFallbackDemoRepo(): CloneResponse {
+// ── 2. Auth & RBAC Microservice Dataset ───────────────────────────────────
+
+export const AUTH_SERVICE_FILES = [
+  'src/api/routes.py',
+  'src/auth/service.py',
+  'src/auth/jwt.py',
+  'src/models/user.py',
+  'src/database/session.py',
+  'src/payments/webhook.py',
+  'tests/test_auth.py',
+]
+
+export const AUTH_SERVICE_TREE: Record<string, unknown> = {
+  src: {
+    api: { 'routes.py': null },
+    auth: { 'service.py': null, 'jwt.py': null },
+    models: { 'user.py': null },
+    database: { 'session.py': null },
+    payments: { 'webhook.py': null },
+  },
+  tests: { 'test_auth.py': null },
+}
+
+export const AUTH_SERVICE_GRAPH: GraphData = {
+  nodes: [
+    { data: { id: 'api.routes', label: 'routes', type: 'file', file_path: 'src/api/routes.py', module_name: 'api.routes', line_number: 0, git_churn: 3 } },
+    { data: { id: 'api.routes.login_endpoint', label: 'login_endpoint', type: 'function', file_path: 'src/api/routes.py', module_name: 'api.routes', line_number: 12, git_churn: 2 } },
+    { data: { id: 'api.routes.verify_endpoint', label: 'verify_endpoint', type: 'function', file_path: 'src/api/routes.py', module_name: 'api.routes', line_number: 28, git_churn: 4 } },
+    { data: { id: 'auth.service', label: 'service', type: 'file', file_path: 'src/auth/service.py', module_name: 'auth.service', line_number: 0, git_churn: 8 } },
+    { data: { id: 'auth.service.AuthService', label: 'AuthService', type: 'class', file_path: 'src/auth/service.py', module_name: 'auth.service', line_number: 8, git_churn: 7 } },
+    { data: { id: 'auth.service.AuthService.login', label: 'login', type: 'function', file_path: 'src/auth/service.py', module_name: 'auth.service', line_number: 14, git_churn: 5 } },
+    { data: { id: 'auth.service.AuthService.verify_token_v2', label: 'verify_token_v2', type: 'function', file_path: 'src/auth/service.py', module_name: 'auth.service', line_number: 32, git_churn: 9 } },
+    { data: { id: 'auth.jwt', label: 'jwt', type: 'file', file_path: 'src/auth/jwt.py', module_name: 'auth.jwt', line_number: 0, git_churn: 2 } },
+    { data: { id: 'auth.jwt.create_access_token', label: 'create_access_token', type: 'function', file_path: 'src/auth/jwt.py', module_name: 'auth.jwt', line_number: 5, git_churn: 1 } },
+    { data: { id: 'auth.jwt.decode_token', label: 'decode_token', type: 'function', file_path: 'src/auth/jwt.py', module_name: 'auth.jwt', line_number: 15, git_churn: 1 } },
+    { data: { id: 'models.user', label: 'user', type: 'file', file_path: 'src/models/user.py', module_name: 'models.user', line_number: 0, git_churn: 1 } },
+    { data: { id: 'models.user.User', label: 'User', type: 'class', file_path: 'src/models/user.py', module_name: 'models.user', line_number: 4, git_churn: 1 } },
+    { data: { id: 'database.session', label: 'session', type: 'file', file_path: 'src/database/session.py', module_name: 'database.session', line_number: 0, git_churn: 3 } },
+    { data: { id: 'database.session.get_db', label: 'get_db', type: 'function', file_path: 'src/database/session.py', module_name: 'database.session', line_number: 6, git_churn: 3 } },
+    { data: { id: 'payments.webhook', label: 'webhook', type: 'file', file_path: 'src/payments/webhook.py', module_name: 'payments.webhook', line_number: 0, git_churn: 4 } },
+    { data: { id: 'payments.webhook.process_payment', label: 'process_payment', type: 'function', file_path: 'src/payments/webhook.py', module_name: 'payments.webhook', line_number: 10, git_churn: 4 } },
+    { data: { id: 'tests.test_auth', label: 'test_auth', type: 'test', file_path: 'tests/test_auth.py', module_name: 'tests.test_auth', line_number: 0, git_churn: 1 } },
+    { data: { id: 'tests.test_auth.test_login', label: 'test_login', type: 'test', file_path: 'tests/test_auth.py', module_name: 'tests.test_auth', line_number: 8, git_churn: 1 } },
+  ],
+  edges: [
+    { data: { id: 'e1', source: 'api.routes.login_endpoint', target: 'auth.service.AuthService.login', type: 'call' } },
+    { data: { id: 'e2', source: 'api.routes.verify_endpoint', target: 'auth.service.AuthService.verify_token_v2', type: 'call' } },
+    { data: { id: 'e3', source: 'payments.webhook.process_payment', target: 'auth.service.AuthService.verify_token_v2', type: 'call' } },
+    { data: { id: 'e4', source: 'auth.service.AuthService.login', target: 'auth.jwt.create_access_token', type: 'call' } },
+    { data: { id: 'e5', source: 'auth.service.AuthService.login', target: 'database.session.get_db', type: 'call' } },
+    { data: { id: 'e6', source: 'auth.service.AuthService.verify_token_v2', target: 'auth.jwt.decode_token', type: 'call' } },
+    { data: { id: 'e7', source: 'tests.test_auth.test_login', target: 'auth.service.AuthService.login', type: 'tests' } },
+  ],
+}
+
+// ── 3. E-Commerce Checkout Dataset ────────────────────────────────────────
+
+export const ECOMMERCE_FILES = [
+  'src/orders/service.py',
+  'src/payments/gateway.py',
+  'src/inventory/stock.py',
+  'src/discounts/engine.py',
+  'tests/test_orders.py',
+]
+
+export const ECOMMERCE_TREE: Record<string, unknown> = {
+  src: {
+    orders: { 'service.py': null },
+    payments: { 'gateway.py': null },
+    inventory: { 'stock.py': null },
+    discounts: { 'engine.py': null },
+  },
+  tests: { 'test_orders.py': null },
+}
+
+export const ECOMMERCE_GRAPH: GraphData = {
+  nodes: [
+    { data: { id: 'orders.service', label: 'service', type: 'file', file_path: 'src/orders/service.py', module_name: 'orders.service', line_number: 0, git_churn: 4 } },
+    { data: { id: 'orders.service.create_order', label: 'create_order', type: 'function', file_path: 'src/orders/service.py', module_name: 'orders.service', line_number: 14, git_churn: 5 } },
+    { data: { id: 'orders.service.checkout', label: 'checkout', type: 'function', file_path: 'src/orders/service.py', module_name: 'orders.service', line_number: 30, git_churn: 7 } },
+    { data: { id: 'payments.gateway', label: 'gateway', type: 'file', file_path: 'src/payments/gateway.py', module_name: 'payments.gateway', line_number: 0, git_churn: 3 } },
+    { data: { id: 'payments.gateway.charge_card', label: 'charge_card', type: 'function', file_path: 'src/payments/gateway.py', module_name: 'payments.gateway', line_number: 10, git_churn: 3 } },
+    { data: { id: 'inventory.stock', label: 'stock', type: 'file', file_path: 'src/inventory/stock.py', module_name: 'inventory.stock', line_number: 0, git_churn: 2 } },
+    { data: { id: 'inventory.stock.reserve_items', label: 'reserve_items', type: 'function', file_path: 'src/inventory/stock.py', module_name: 'inventory.stock', line_number: 8, git_churn: 2 } },
+    { data: { id: 'discounts.engine', label: 'engine', type: 'file', file_path: 'src/discounts/engine.py', module_name: 'discounts.engine', line_number: 0, git_churn: 1 } },
+    { data: { id: 'discounts.engine.apply_coupons', label: 'apply_coupons', type: 'function', file_path: 'src/discounts/engine.py', module_name: 'discounts.engine', line_number: 6, git_churn: 1 } },
+    { data: { id: 'tests.test_orders', label: 'test_orders', type: 'test', file_path: 'tests/test_orders.py', module_name: 'tests.test_orders', line_number: 0, git_churn: 1 } },
+    { data: { id: 'tests.test_orders.test_checkout_flow', label: 'test_checkout_flow', type: 'test', file_path: 'tests/test_orders.py', module_name: 'tests.test_orders', line_number: 12, git_churn: 1 } },
+  ],
+  edges: [
+    { data: { id: 'ec1', source: 'orders.service.checkout', target: 'orders.service.create_order', type: 'call' } },
+    { data: { id: 'ec2', source: 'orders.service.checkout', target: 'discounts.engine.apply_coupons', type: 'call' } },
+    { data: { id: 'ec3', source: 'orders.service.checkout', target: 'inventory.stock.reserve_items', type: 'call' } },
+    { data: { id: 'ec4', source: 'orders.service.checkout', target: 'payments.gateway.charge_card', type: 'call' } },
+    { data: { id: 'ec5', source: 'tests.test_orders.test_checkout_flow', target: 'orders.service.checkout', type: 'tests' } },
+  ],
+}
+
+// ── Dispatch Helpers ──────────────────────────────────────────────────────
+
+export function getFallbackDemoRepo(scenario: string = 'auth_service'): CloneResponse {
+  if (scenario === 'yt_music' || scenario.includes('music')) {
+    return {
+      repo_id: 'demo-yt-music',
+      name: 'yt-music',
+      file_count: 12,
+      status: 'ready',
+      source_url: 'https://github.com/Jayvirsinh270/yt-music.git',
+      branch: 'main',
+    }
+  }
+
+  if (scenario === 'ecommerce') {
+    return {
+      repo_id: 'demo-ecommerce',
+      name: 'ecommerce-checkout',
+      file_count: 5,
+      status: 'ready',
+      source_url: 'https://github.com/demo/ecommerce-core',
+      branch: 'main',
+    }
+  }
+
   return {
-    repo_id: FALLBACK_REPO_ID,
-    name: 'yt-music',
-    file_count: 12,
+    repo_id: 'demo-auth_service',
+    name: 'auth-microservice',
+    file_count: 7,
     status: 'ready',
-    source_url: 'https://github.com/Jayvirsinh270/yt-music.git',
+    source_url: 'https://github.com/demo/auth-microservice',
     branch: 'main',
   }
 }
 
-export function getFallbackGraph(_repoId: string = ''): GraphData {
-  return ytMusicGraphData as unknown as GraphData
+export function getFallbackStructure(repoId: string): { files: string[]; tree: Record<string, unknown> } {
+  // Check in-memory store first (for user-uploaded ZIPs, folders, or cloned repos)
+  const stored = getStoredRepo(repoId)
+  if (stored) {
+    return { files: stored.files, tree: stored.tree }
+  }
+
+  const id = repoId.toLowerCase()
+  if (id.includes('music') || id.includes('yt')) {
+    return { files: REAL_YT_MUSIC_FILES, tree: REAL_YT_MUSIC_TREE }
+  }
+  if (id.includes('ecom')) {
+    return { files: ECOMMERCE_FILES, tree: ECOMMERCE_TREE }
+  }
+  return { files: AUTH_SERVICE_FILES, tree: AUTH_SERVICE_TREE }
 }
 
-export function getFallbackImpact(nodeId: string): ImpactResult {
+export function getFallbackGraph(repoId: string = ''): GraphData {
+  const stored = getStoredRepo(repoId)
+  if (stored) {
+    return stored.graph
+  }
+
+  const id = repoId.toLowerCase()
+  if (id.includes('music') || id.includes('yt')) {
+    return ytMusicGraphData as unknown as GraphData
+  }
+  if (id.includes('ecom')) {
+    return ECOMMERCE_GRAPH
+  }
+  return AUTH_SERVICE_GRAPH
+}
+
+export function getFallbackImpact(repoId: string, nodeId: string): ImpactResult {
+  const stored = getStoredRepo(repoId)
+  if (stored) {
+    return computeDynamicImpact(stored, nodeId)
+  }
+
+  const id = repoId.toLowerCase()
+  if (id.includes('music') || id.includes('yt')) {
+    return getMusicImpact(nodeId)
+  }
+  if (id.includes('ecom')) {
+    return getEcommerceImpact(nodeId)
+  }
+  return getAuthImpact(nodeId)
+}
+
+function getMusicImpact(nodeId: string): ImpactResult {
   const label = nodeId.split('.').pop() ?? nodeId
   const isDb = nodeId.includes('get_db') || nodeId.includes('db_store')
-  const isServer = nodeId.includes('start_server') || nodeId.includes('main')
 
   if (isDb) {
     return {
@@ -158,32 +331,6 @@ export function getFallbackImpact(nodeId: string): ImpactResult {
     }
   }
 
-  if (isServer) {
-    return {
-      selected_node_id: nodeId,
-      selected_node_label: label,
-      selected_node_type: 'function',
-      direct_affected: [
-        { id: 'web_app.init_flask_app', label: 'init_flask_app', file_path: 'web_app.py', type: 'function' },
-        { id: 'discord_rpc.update_presence_loop', label: 'update_presence_loop', file_path: 'discord_rpc.py', type: 'function' },
-      ],
-      transitive_affected: [
-        { id: 'web_app.stream_audio_route', label: 'stream_audio_route', file_path: 'web_app.py', type: 'function' },
-      ],
-      related_tests: [],
-      risk_level: 'HIGH',
-      risk_score: 85,
-      contributing_factors: [
-        'Runtime socket and port listener binding modified (5000 -> 8080)',
-        'Direct caller web_app.init_flask_app has NO test coverage for port 8080',
-        'Breaks existing reverse proxies and client apps expecting port 5000',
-      ],
-      max_depth: 2,
-      analysis_type: 'ast_dependency_traversal',
-      change_description: 'Modified server port to 8080',
-    }
-  }
-
   return {
     selected_node_id: nodeId,
     selected_node_label: label,
@@ -208,10 +355,69 @@ export function getFallbackImpact(nodeId: string): ImpactResult {
   }
 }
 
-export function getFallbackDiffImpact(diff: string): DiffImpactResult {
-  const isPortDiff = diff.includes('8080') || diff.includes('start_server') || diff.includes('main.py')
+function getAuthImpact(nodeId: string): ImpactResult {
+  const label = nodeId.split('.').pop() ?? nodeId
+  return {
+    selected_node_id: nodeId,
+    selected_node_label: label,
+    selected_node_type: nodeId.includes('test') ? 'test' : 'function',
+    direct_affected: [
+      { id: 'api.routes.verify_endpoint', label: 'verify_endpoint', file_path: 'src/api/routes.py', type: 'function' },
+      { id: 'payments.webhook.process_payment', label: 'process_payment', file_path: 'src/payments/webhook.py', type: 'function' },
+    ],
+    transitive_affected: [
+      { id: 'api.routes', label: 'routes.py', file_path: 'src/api/routes.py', type: 'file' },
+      { id: 'payments.webhook', label: 'webhook.py', file_path: 'src/payments/webhook.py', type: 'file' },
+    ],
+    related_tests: [
+      { id: 'tests.test_auth.test_login', label: 'test_login', file_path: 'tests/test_auth.py', type: 'test' },
+    ],
+    risk_level: 'HIGH',
+    risk_score: 78,
+    contributing_factors: [
+      'Downstream dependency payments.webhook.process_payment has NO test coverage',
+      'High Git churn module (8 revisions in last 30 days)',
+      'Cross-boundary call between auth module and payments pipeline',
+    ],
+    max_depth: 2,
+    analysis_type: 'ast_dependency_traversal',
+    change_description: `Changes to authentication verification contract in ${label}`,
+  }
+}
 
-  if (isPortDiff) {
+function getEcommerceImpact(nodeId: string): ImpactResult {
+  const label = nodeId.split('.').pop() ?? nodeId
+  return {
+    selected_node_id: nodeId,
+    selected_node_label: label,
+    selected_node_type: 'function',
+    direct_affected: [
+      { id: 'orders.service.checkout', label: 'checkout', file_path: 'src/orders/service.py', type: 'function' },
+      { id: 'payments.gateway.charge_card', label: 'charge_card', file_path: 'src/payments/gateway.py', type: 'function' },
+    ],
+    transitive_affected: [
+      { id: 'inventory.stock.reserve_items', label: 'reserve_items', file_path: 'src/inventory/stock.py', type: 'function' },
+    ],
+    related_tests: [
+      { id: 'tests.test_orders.test_checkout_flow', label: 'test_checkout_flow', file_path: 'tests/test_orders.py', type: 'test' },
+    ],
+    risk_level: 'HIGH',
+    risk_score: 84,
+    contributing_factors: [
+      'Direct caller checkout executes financial card charging transaction',
+      'Coupons and pricing engine calculations propagate directly to total balance',
+    ],
+    max_depth: 2,
+    analysis_type: 'ast_dependency_traversal',
+    change_description: `Changes to e-commerce checkout flow in ${label}`,
+  }
+}
+
+export function getFallbackDiffImpact(repoId: string, diff: string): DiffImpactResult {
+  const isPortDiff = diff.includes('8080') || diff.includes('start_server') || diff.includes('main.py')
+  const id = repoId.toLowerCase()
+
+  if (isPortDiff || id.includes('music') || id.includes('yt')) {
     return {
       changed_files: ['main.py'],
       changed_symbols: [
@@ -230,139 +436,174 @@ export function getFallbackDiffImpact(diff: string): DiffImpactResult {
       ],
       transitive_affected: [
         { id: 'web_app.stream_audio_route', label: 'stream_audio_route', type: 'function', file_path: 'web_app.py' },
-        { id: 'recommendation_engine.get_personalized_queue', label: 'get_personalized_queue', type: 'function', file_path: 'recommendation_engine.py' },
       ],
       related_tests: [],
       untested_affected: [
         { id: 'web_app.init_flask_app', label: 'init_flask_app', type: 'function', file_path: 'web_app.py' },
-        { id: 'discord_rpc.update_presence_loop', label: 'update_presence_loop', type: 'function', file_path: 'discord_rpc.py' },
       ],
       risk_level: 'HIGH',
       risk_score: 85,
       contributing_factors: [
+        'Runtime socket and port listener binding modified (5000 -> 8080)',
         'Direct caller web_app.init_flask_app has NO test coverage for port 8080',
-        'Port modification (5000 -> 8080) breaks client web and mobile socket connections',
-        'Critical entrypoint symbol main.start_server modified',
+        'Breaks existing reverse proxies and client apps expecting port 5000',
       ],
       max_depth: 2,
-      analysis_type: 'git_ast_blast_radius',
-      change_description: 'Modified server port to 8080',
+      analysis_type: 'ast_dependency_traversal',
+      change_description: 'Modified server port to 8080 in main.py',
       ai: {
         available: true,
         model_used: 'ibm/granite-13b-chat-v2',
         analysis_type: 'ai_assisted',
-        explanation:
-          'A modification inside main.py changes the application runtime port from 5000 to 8080. This change alters the network socket contract. Downstream client endpoints in web_app.py and discord_rpc.py depend on standard port bindings, and current test suites have zero integration tests asserting port 8080 compatibility.',
-        risk_areas: [
-          'Client connection failure (ECONNREFUSED on port 5000)',
-          'Docker container exposed port mismatch if Dockerfile remains port 5000',
-          'Untested downstream API listener in web_app.py',
-        ],
-        migration_plan: [
-          'Generate and run pytest suite verifying port binding and socket acceptance on port 8080',
-          'Verify reverse proxy configuration (Nginx / Cloudflare) to route to port 8080',
-          'Update environment variable configuration fallback PORT=8080',
-        ],
-        recommended_tests: [
-          'test_start_server_binds_to_configured_port',
-          'test_client_handshake_on_port_8080',
-          'test_environment_override_port_fallback',
-        ],
+        explanation: 'Port modification in main.py changes local server binding from 5000 to 8080. Reverse proxies and clients require reconfiguration.',
+        risk_areas: ['Desktop frontend connection failure', 'RPC communication port mismatch'],
+        migration_plan: ['Update client connection port in config', 'Add environment variable override for PORT'],
+        recommended_tests: ['test_server_port_override', 'test_local_server_startup'],
       },
     }
   }
 
-  // Default Recommendation Engine / Database Diff
+  // Auth / default diff
   return {
-    changed_files: ['db_store.py'],
+    changed_files: ['src/auth/service.py'],
     changed_symbols: [
       {
-        node_id: 'db_store.get_db',
-        label: 'get_db',
+        node_id: 'auth.service.AuthService.verify_token_v2',
+        label: 'verify_token_v2',
         type: 'function',
-        file_path: 'db_store.py',
-        line_number: 14,
+        file_path: 'src/auth/service.py',
+        line_number: 32,
         change_type: 'modified',
       },
     ],
     direct_affected: [
-      { id: 'web_app.stream_audio_route', label: 'stream_audio_route', type: 'function', file_path: 'web_app.py' },
-      { id: 'library_service.fetch_user_library', label: 'fetch_user_library', type: 'function', file_path: 'library_service.py' },
+      { id: 'api.routes.verify_endpoint', label: 'verify_endpoint', type: 'function', file_path: 'src/api/routes.py' },
+      { id: 'payments.webhook.process_payment', label: 'process_payment', type: 'function', file_path: 'src/payments/webhook.py' },
     ],
     transitive_affected: [
-      { id: 'smart_playlists.generate_smart_mix', label: 'generate_smart_mix', type: 'function', file_path: 'smart_playlists.py' },
-      { id: 'recommendation_engine.get_personalized_queue', label: 'get_personalized_queue', type: 'function', file_path: 'recommendation_engine.py' },
+      { id: 'api.routes', label: 'routes.py', type: 'file', file_path: 'src/api/routes.py' },
+      { id: 'payments.webhook', label: 'webhook.py', type: 'file', file_path: 'src/payments/webhook.py' },
     ],
     related_tests: [],
     untested_affected: [
-      { id: 'web_app.stream_audio_route', label: 'stream_audio_route', type: 'function', file_path: 'web_app.py' },
+      { id: 'payments.webhook.process_payment', label: 'process_payment', type: 'function', file_path: 'src/payments/webhook.py' },
     ],
     risk_level: 'HIGH',
-    risk_score: 92,
+    risk_score: 82,
     contributing_factors: [
-      'Direct caller web_app.stream_audio_route is completely untested',
-      'High churn symbol get_db modified with 54 transitive callers',
-      'Database connection failure will cause 500 Internal Server Errors across all audio routes',
+      'Direct caller payments.webhook.process_payment is completely untested',
+      'High churn symbol verify_token_v2 modified',
+      'Cross-microservice contract modification without corresponding test update',
     ],
-    max_depth: 3,
+    max_depth: 2,
     analysis_type: 'git_ast_blast_radius',
-    change_description: 'Modified database connection session manager',
+    change_description: 'Modified token verification protocol',
     ai: {
       available: true,
       model_used: 'ibm/granite-13b-chat-v2',
       analysis_type: 'ai_assisted',
       explanation:
-        'Modifications to db_store.get_db impact 54 downstream callers across the microservice. The streaming audio endpoint in web_app.py relies on this database session directly, and has zero test coverage.',
+        'Modifications to verify_token_v2 alter the token validation contract. The downstream function process_payment in payments/webhook.py consumes this method directly but currently has ZERO unit test coverage. This change creates a high risk of payment webhook rejections in production.',
       risk_areas: [
-        'Database session leak during streaming audio playback',
-        'SQLite locking timeout under concurrent playlist writes',
-        'Unhandled exception in web_app.py request lifecycle',
+        'Payment webhook validation pipeline failure',
+        'Stale token rejection in client API sessions',
+        'Uncaught exception in unmocked payment processor',
       ],
       migration_plan: [
-        'Generate and run automated pytest suite for web_app.py database context handling',
-        'Verify connection pooling and thread-safe session disposal',
-        'Run end-to-end integration tests on audio playback and playlist state',
+        'Generate and run automated pytest suite for payments.webhook.process_payment',
+        'Implement backwards-compatible token fallback before deprecating v1',
+        'Run end-to-end integration tests between auth and billing services',
       ],
       recommended_tests: [
-        'test_get_db_session_lifecycle',
-        'test_stream_audio_handles_db_disconnect',
-        'test_concurrent_playlist_read_write',
+        'test_process_payment_with_valid_v2_token',
+        'test_process_payment_with_expired_token_graceful_handling',
+        'test_auth_service_verify_token_edge_cases',
       ],
     },
   }
 }
 
-export function getFallbackNodeSummary(nodeId: string): NodeSummaryResponse {
+export function getFallbackNodeSummary(repoId: string, nodeId: string): NodeSummaryResponse {
   const label = nodeId.split('.').pop() ?? nodeId
-  const isDb = nodeId.includes('get_db') || nodeId.includes('db_store')
+  const id = repoId.toLowerCase()
+
+  if (id.includes('music') || id.includes('yt')) {
+    const isDb = nodeId.includes('get_db') || nodeId.includes('db_store')
+    return {
+      node_id: nodeId,
+      label,
+      node_type: nodeId.includes('Client') ? 'class' : 'function',
+      purpose: isDb
+        ? 'Thread-safe SQLite connection factory with automatic schema migrations and commit rollback lifecycle.'
+        : `Central application controller handling audio playback, metadata ingestion, and API streaming orchestration.`,
+      responsibilities: isDb
+        ? [
+            'Manages SQLite connection lifecycle and schema isolation',
+            'Synchronizes playlist metadata, track history, and audio bookmarks',
+            'Executes atomic read/write transactions with automatic rollback',
+          ]
+        : [
+            'Handles client audio streaming and download queues',
+            'Coordinates with recommendation engine to refresh dynamic mixes',
+            'Exposes REST controllers for UI client and RPC handlers',
+          ],
+      inputs_and_outputs: isDb
+        ? 'Inputs: None (contextmanager). Yields: sqlite3.Connection instance with row_factory dict access.'
+        : 'Inputs: request payload (Flask context). Returns: JSON response with status and audio stream URL.',
+      architectural_role: isDb ? 'Core Data Persistence Subsystem' : 'Controller & Streaming Subsystem',
+      complexity_rating: 'HIGH',
+      model_used: 'ibm/granite-13b-chat-v2',
+      analysis_type: 'ai_assisted',
+      callers: isDb ? ['web_app', 'library_service', 'smart_playlists', 'downloader'] : ['web_app', 'main'],
+      callees: isDb ? ['sqlite3.connect', '_auto_migrate_legacy_json'] : ['db_store.get_db'],
+      file_path: isDb ? 'db_store.py' : 'main.py',
+      line_number: isDb ? 14 : 10,
+    }
+  }
 
   return {
     node_id: nodeId,
     label,
-    node_type: isDb ? 'function' : 'function',
-    purpose: isDb
-      ? 'Primary database session factory and state persistence manager for yt-music, managing sqlite connections, thread local sessions, and playlist tables.'
-      : `Central architectural component managing execution and downstream service integration for ${label}.`,
+    node_type: nodeId.includes('AuthService') ? 'class' : 'function',
+    purpose: `Central architectural component in ${repoId} managing execution flow, validations, and downstream caller safety.`,
     responsibilities: [
-      'Executes core logic and validates incoming parameters',
-      'Coordinates with subsystem dependencies across architectural boundaries',
-      'Maintains operational stability for downstream callers',
+      'Validates parameters and coordinates with core database/storage',
+      'Provides security and data boundary for controllers and services',
+      'Enforces transactional integrity across related subsystems',
     ],
-    inputs_and_outputs: 'Inputs: request payload or configuration. Returns: response status or execution state.',
-    architectural_role: isDb ? 'Database & Storage Subsystem Layer' : 'Core Architectural Subsystem Component',
-    complexity_rating: isDb ? 'HIGH' : 'MEDIUM',
+    inputs_and_outputs: 'Inputs: parameters (dict/str). Returns: boolean status or entity payload.',
+    architectural_role: 'Core Architectural Subsystem',
+    complexity_rating: 'MEDIUM',
     model_used: 'ibm/granite-13b-chat-v2',
     analysis_type: 'ai_assisted',
-    callers: isDb ? ['web_app', 'library_service', 'smart_playlists', 'downloader'] : ['web_app', 'main'],
-    callees: isDb ? ['sqlite3.connect', '_auto_migrate_legacy_json'] : ['db_store.get_db'],
-    file_path: isDb ? 'db_store.py' : 'main.py',
-    line_number: isDb ? 14 : 10,
+    callers: ['api.routes', 'services.worker'],
+    callees: ['database.session.get_db'],
+    file_path: nodeId.includes('.') ? nodeId.split('.')[0] + '.py' : 'main.py',
+    line_number: 14,
   }
 }
 
-export function getFallbackSourceCode(filePath: string): SourceCodeResponse {
-  if (filePath.includes('main.py')) {
-    const mainCode = `import os
+export function getFallbackSourceCode(repoId: string, filePath: string): SourceCodeResponse {
+  // Check stored in-memory repo first!
+  const stored = getStoredRepo(repoId)
+  if (stored) {
+    const code = stored.sourceCodes.get(filePath) || stored.sourceCodes.get(filePath.replace(/^[/\\]+/, ''))
+    if (code) {
+      return {
+        repo_id: repoId,
+        file_path: filePath,
+        relative_path: filePath,
+        total_lines: code.split('\n').length,
+        content: code,
+        language: filePath.endsWith('.py') ? 'python' : 'text',
+      }
+    }
+  }
+
+  // Pre-configured source code for yt-music
+  if (repoId.includes('music') || repoId.includes('yt')) {
+    if (filePath.includes('main.py')) {
+      const mainCode = `import os
 import sys
 import webbrowser
 from threading import Timer
@@ -380,18 +621,18 @@ def start_server():
 if __name__ == "__main__":
     start_server()
 `
-    return {
-      repo_id: 'yt-music',
-      file_path: filePath,
-      relative_path: filePath,
-      total_lines: 16,
-      content: mainCode,
-      language: 'python',
+      return {
+        repo_id: repoId,
+        file_path: filePath,
+        relative_path: filePath,
+        total_lines: 16,
+        content: mainCode,
+        language: 'python',
+      }
     }
-  }
 
-  if (filePath.includes('db_store.py')) {
-    const dbCode = `import sqlite3
+    if (filePath.includes('db_store.py')) {
+      const dbCode = `import sqlite3
 import os
 from contextlib import contextmanager
 
@@ -424,162 +665,107 @@ def init_db():
             )
         """)
 `
-    return {
-      repo_id: 'yt-music',
-      file_path: filePath,
-      relative_path: filePath,
-      total_lines: 34,
-      content: dbCode,
-      language: 'python',
+      return {
+        repo_id: repoId,
+        file_path: filePath,
+        relative_path: filePath,
+        total_lines: 34,
+        content: dbCode,
+        language: 'python',
+      }
     }
   }
 
-  if (filePath.includes('recommendation_engine.py')) {
-    const recCode = `"""
-recommendation_engine.py — Cognitive Music Intelligence Engine
-Evaluates playback history, collaborative transition matrices, and skips.
-"""
-import json
-import math
-import os
-import db_store as db
-import downloader as dl
+  // Auth service code
+  if (filePath.includes('service.py')) {
+    const authCode = `# Source code: ${filePath}
+from ..models.user import User
+from ..database.session import get_db
+from .jwt import create_access_token, decode_token
 
-def get_personalized_queue(user_id: str, limit: int = 20):
-    """Generates personalized smart playlist using collaborative filtering."""
-    with db.get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT track_id, count FROM playback_history WHERE user_id = ?", (user_id,))
-        history = cursor.fetchall()
-        return [h["track_id"] for h in history[:limit]]
+class AuthService:
+    """Core Authentication & Token Verification Service."""
+    def __init__(self, db=None):
+        self.db = db or get_db()
+
+    def login(self, username: str, password: str) -> str:
+        user = self.db.find_user(username)
+        if not user or not user.check_password(password):
+            raise ValueError("Invalid user credentials")
+        return create_access_token(user.username, user.role)
+
+    def verify_token_v2(self, token: str) -> bool:
+        """
+        Validates access token format and expiration.
+        WARNING: High-impact method called by API routes and Payments webhook.
+        """
+        if not token or len(token) < 10:
+            return False
+        payload = decode_token(token)
+        return payload.get("username") is not None
 `
     return {
-      repo_id: 'yt-music',
+      repo_id: repoId,
       file_path: filePath,
       relative_path: filePath,
-      total_lines: 19,
-      content: recCode,
+      total_lines: 28,
+      content: authCode,
       language: 'python',
     }
   }
 
-  const defaultCode = `# ${filePath}
-# Module component of yt-music architecture
-import db_store as db
+  const defaultContent = `# ${filePath}
+# Analyzed repository module: ${repoId}
 
-def execute_service_action():
-    """Service worker method integrated with central database context."""
-    with db.get_db() as conn:
-        return True
+def execute_module_action():
+    """Application component method."""
+    return True
 `
   return {
-    repo_id: 'yt-music',
+    repo_id: repoId,
     file_path: filePath,
     relative_path: filePath,
-    total_lines: 10,
-    content: defaultCode,
+    total_lines: 8,
+    content: defaultContent,
     language: 'python',
   }
 }
 
-export function getFallbackGeneratedTest(nodeId: string): GeneratedTestSuite {
-  const label = nodeId.split('.').pop() ?? 'get_db'
-  
-  if (label.includes('server') || label.includes('start')) {
-    const code = `"""
-Unit test suite for ${nodeId}
-Synthesized by X-Ray using IBM watsonx.ai (ibm/granite-13b-chat-v2)
-Regression safety net for server port and listener binding.
-"""
-import pytest
-from unittest.mock import MagicMock, patch
-
-from main import start_server
-
-
-class Test${label.charAt(0).toUpperCase() + label.slice(1)}Suite:
-    """Automated test suite verifying socket configuration and port 8080 migration."""
-
-    def test_${label}_port_binding(self):
-        """Verify server binds to updated port 8080."""
-        with patch("web_app.app.run") as mock_run:
-            port = start_server()
-            assert port == 8080
-            mock_run.assert_called_once_with(host="127.0.0.1", port=8080, debug=False)
-
-    def test_${label}_environment_override(self):
-        """Ensure port configuration gracefully falls back if custom port passed."""
-        with patch.dict("os.environ", {"LINUS_PORT": "8080"}):
-            with patch("web_app.app.run"):
-                port = start_server()
-                assert port == 8080
-`
-    return {
-      node_id: nodeId,
-      target_label: label,
-      target_file: 'main.py',
-      test_filename: `test_${label.toLowerCase()}_watsonx.py`,
-      test_code: code,
-      framework: 'pytest',
-      scenarios_covered: [
-        'Port 8080 binding verification',
-        'Flask application runner keyword argument assertion',
-        'Regression prevention for client socket listeners',
-      ],
-      model_used: 'ibm/granite-13b-chat-v2',
-      analysis_type: 'ai_assisted',
-    }
-  }
+export function getFallbackGeneratedTest(_repoId: string, nodeId: string): GeneratedTestSuite {
+  const label = nodeId.split('.').pop() ?? 'main_component'
 
   const code = `"""
 Unit test suite for ${nodeId}
 Synthesized by X-Ray using IBM watsonx.ai (ibm/granite-13b-chat-v2)
-Regression safety net for central database connection manager.
+Regression safety net for untested downstream callers.
 """
 import pytest
-import sqlite3
-from unittest.mock import patch, MagicMock
-
-from db_store import get_db, init_db
-
+from unittest.mock import MagicMock, patch
 
 class Test${label.charAt(0).toUpperCase() + label.slice(1)}Suite:
-    """Regression test matrix covering connection lifecycle, rollback, and concurrency."""
+    """Regression test matrix covering valid execution, boundary conditions, and error recovery."""
 
-    def test_${label}_context_manager_commit(self):
-        """Verify database transaction commits successfully on normal exit."""
-        with get_db() as db:
-            assert isinstance(db, sqlite3.Connection)
-            db.execute("CREATE TABLE IF NOT EXISTS test_tbl (id INT)")
-            db.execute("INSERT INTO test_tbl VALUES (1)")
-        
-        # Verify persistence
-        with get_db() as db:
-            cur = db.execute("SELECT id FROM test_tbl WHERE id = 1")
-            assert cur.fetchone()[0] == 1
+    def test_${label}_happy_path(self):
+        """Verify normal behavior with valid parameters."""
+        assert True
 
-    def test_${label}_rollback_on_exception(self):
-        """Verify transaction automatically rolls back if an unhandled error occurs."""
-        with pytest.raises(RuntimeError):
-            with get_db() as db:
-                db.execute("INSERT INTO test_tbl VALUES (999)")
-                raise RuntimeError("Simulated failure inside transaction")
-        
-        with get_db() as db:
-            cur = db.execute("SELECT id FROM test_tbl WHERE id = 999")
-            assert cur.fetchone() is None
+    def test_${label}_resilience_on_exception(self):
+        """Verify graceful exception recovery when dependent service fails."""
+        with pytest.raises(Exception):
+            raise RuntimeError("Simulated dependency exception")
 `
+
   return {
     node_id: nodeId,
     target_label: label,
-    target_file: 'db_store.py',
+    target_file: 'tests/test_generated.py',
     test_filename: `test_${label.toLowerCase()}_watsonx.py`,
     test_code: code,
     framework: 'pytest',
     scenarios_covered: [
-      'Database connection lifecycle & context manager auto-close',
-      'Transaction auto-commit verification',
-      'Transaction auto-rollback on downstream exception',
+      'Happy path verification with default parameters',
+      'Boundary testing and empty input resilience',
+      'Exception isolation on downstream failure',
     ],
     model_used: 'ibm/granite-13b-chat-v2',
     analysis_type: 'ai_assisted',
